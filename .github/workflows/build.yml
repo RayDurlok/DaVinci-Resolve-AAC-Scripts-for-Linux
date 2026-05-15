@@ -1,30 +1,22 @@
-name: Build AAC Encoder Plugin
+name: Check
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
   pull_request:
-    branches: [ main, master ]
+    branches: [main]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Install dependencies
+      - uses: actions/checkout@v4
+
+      - name: Check shell scripts
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libavcodec-dev libavutil-dev libc++-dev libc++abi-dev
-      - name: Build plugin
+          bash -n *.sh
+
+      - name: Check Python scripts
         run: |
-          make clean && make
-          ./build.sh
-      - name: Prepare artifact
-        run: |
-          mkdir -p artifact
-          cp -r aac_encoder_plugin.dvcp.bundle artifact/
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: aac_encoder_plugin-bundle
-          path: artifact/aac_encoder_plugin.dvcp.bundle
+          python3 -m py_compile resolve_aac_*.py

@@ -21,6 +21,17 @@ Preferences -> System -> General -> External scripting
 
 ## Install
 
+Download the latest release archive:
+
+```bash
+curl -L https://github.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/releases/latest/download/resolve-aac-tools-linux.tar.gz -o resolve-aac-tools-linux.tar.gz
+tar xzf resolve-aac-tools-linux.tar.gz
+cd resolve-aac-tools
+./install_user_tools.sh
+```
+
+Or clone the repository and run:
+
 ```bash
 ./install_user_tools.sh
 ```
