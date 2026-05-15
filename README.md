@@ -49,6 +49,9 @@ resolve-with-aac-mediapool-watch
 Then drag media into Resolve as usual. AAC media is converted to MOV/PCM and the
 MediaPool item is replaced automatically.
 
+When started in an existing project, the watcher also scans already imported
+online MediaPool clips. Offline media is skipped.
+
 To keep generated files in a cache folder instead of beside the source media:
 
 ```bash

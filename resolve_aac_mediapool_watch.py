@@ -14,6 +14,7 @@ from resolve_aac_import import convert, get_resolve
 from resolve_aac_timeline import (
     DEFAULT_OUTPUT_SUBDIR,
     LOG_PATH,
+    clip_property,
     is_generated_remux_path,
     iter_media_pool_items,
     cache_output_dir_for_input,
@@ -55,8 +56,32 @@ def item_key(item):
         return media_id or str(id(item))
 
 
+def is_online_media_path(path):
+    return path.exists() and path.is_file()
+
+
+def item_online_state(item):
+    raw_path = media_pool_item_path(item)
+    if not raw_path:
+        return "missing-path"
+
+    path = Path(raw_path).expanduser()
+    if not is_online_media_path(path):
+        return "offline"
+
+    status = str(clip_property(item, "Status") or "").lower()
+    if "offline" in status:
+        return "offline"
+
+    return "online"
+
+
+def item_process_key(item):
+    return "%s:%s" % (item_key(item), item_online_state(item))
+
+
 def media_pool_signature(items):
-    return tuple(sorted(item_key(item) for item in items))
+    return tuple(sorted(item_process_key(item) for item in items))
 
 
 def replace_media_pool_item(item, output_dir_override=None, cache_dir=None, overwrite=False, quiet=False):
@@ -65,6 +90,9 @@ def replace_media_pool_item(item, output_dir_override=None, cache_dir=None, over
         return None
 
     input_path = Path(raw_path).expanduser().resolve()
+    if not is_online_media_path(input_path):
+        return None
+
     if is_generated_remux_path(input_path):
         return None
 
@@ -102,7 +130,7 @@ def scan_once(args, state):
     state["signature"] = signature
 
     for item in items:
-        key = item_key(item)
+        key = item_process_key(item)
         if key in state["processed"] and not args.retry:
             continue
 
@@ -113,6 +141,11 @@ def scan_once(args, state):
                 continue
 
             input_path = Path(raw_path).expanduser().resolve()
+            if item_online_state(item) != "online":
+                state["processed"].add(key)
+                log(f"Skipping offline MediaPool item: {raw_path}")
+                continue
+
             if is_generated_remux_path(input_path):
                 state["processed"].add(key)
                 continue
