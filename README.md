@@ -1,5 +1,7 @@
 # DaVinci Resolve AAC Tools for Linux
 
+Inspired by: https://github.com/jchai01/davinci-resolve-aac-workaround-macro
+
 A small Linux helper for DaVinci Resolve projects that contain AAC audio.
 
 It watches the Resolve MediaPool, converts AAC audio to Resolve-friendly PCM,
