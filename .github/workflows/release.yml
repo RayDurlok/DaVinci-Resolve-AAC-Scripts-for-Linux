@@ -17,10 +17,13 @@ jobs:
       - name: Build script archive
         run: |
           mkdir -p resolve-aac-tools
-          cp README.md LICENSE install_user_tools.sh resolve-aac-tools/
-          cp resolve_aac_*.py resolve-aac-tools/
-          cp resolve-with-aac-mediapool-watch.sh resolve-with-aac.sh resolve-aac-tools/
-          cp build_resolve_ffmpeg_aac.sh install_resolve_ffmpeg_aac.sh restore_resolve_ffmpeg_backup.sh resolve-aac-tools/
+          cp README.md LICENSE scripts/install_user_tools.sh resolve-aac-tools/
+          cp scripts/resolve_aac_*.py resolve-aac-tools/
+          cp scripts/resolve-with-aac-mediapool-watch.sh resolve-aac-tools/
+          cp experiments/ffmpeg-patch/build_resolve_ffmpeg_aac.sh resolve-aac-tools/
+          cp experiments/ffmpeg-patch/install_resolve_ffmpeg_aac.sh resolve-aac-tools/
+          cp experiments/ffmpeg-patch/restore_resolve_ffmpeg_backup.sh resolve-aac-tools/
+          cp experiments/ffmpeg-patch/resolve-with-aac.sh resolve-aac-tools/
           tar czf resolve-aac-tools-linux.tar.gz resolve-aac-tools
 
       - name: Create GitHub release

@@ -15,6 +15,8 @@ re-encoded. Original files stay untouched.
 - `ffmpeg` and `ffprobe`
 - Resolve scripting enabled
 
+Tested on Fedora with DaVinci Resolve Studio.
+
 Enable scripting in Resolve:
 
 ```text
@@ -35,7 +37,7 @@ cd resolve-aac-tools
 Or clone the repository and run:
 
 ```bash
-./install_user_tools.sh
+./scripts/install_user_tools.sh
 ```
 
 This installs command wrappers and Resolve menu scripts for the current user.
@@ -68,10 +70,17 @@ resolve-with-aac-mediapool-watch
 Then drag media into Resolve as usual. AAC media is converted to MOV/PCM and the
 MediaPool item is replaced automatically.
 
+For best results, import clips into the MediaPool first and then edit them into
+the timeline.
+
 When started in an existing project, the watcher also scans already imported
 online MediaPool clips. This also works for projects that already have edited
 clips in the timeline, as long as those timeline clips still reference the
 MediaPool items. Offline media is skipped.
+
+Dragging AAC media directly into the timeline can work, but Resolve may keep an
+old waveform cache. In that case audio can play while the waveform is missing.
+Use `resolve-aac-current-clip` or `resolve-aac-timeline-watch` as a fallback.
 
 To keep generated files in a cache folder instead of beside the source media:
 
@@ -133,9 +142,11 @@ Some Resolve Linux builds ship FFmpeg libraries with AAC disabled. This repo
 includes experimental scripts that build AAC-enabled FFmpeg libraries and install
 them into `/opt/resolve/libs` with a backup:
 
+From a source checkout:
+
 ```bash
-./build_resolve_ffmpeg_aac.sh
-./install_resolve_ffmpeg_aac.sh
+./experiments/ffmpeg-patch/build_resolve_ffmpeg_aac.sh
+./experiments/ffmpeg-patch/install_resolve_ffmpeg_aac.sh
 ```
 
 This did not solve AAC playback reliably in testing. The replacement libraries
@@ -145,11 +156,20 @@ correctly.
 Restore the latest backup:
 
 ```bash
-./restore_resolve_ffmpeg_backup.sh
+./experiments/ffmpeg-patch/restore_resolve_ffmpeg_backup.sh
 ```
 
 This path is unsupported and not recommended for normal use. The code is kept in
 the repository for anyone who wants to continue experimenting.
+
+## Repository Layout
+
+```text
+scripts/                  User-facing Resolve AAC tools
+experiments/ffmpeg-patch/ Failed FFmpeg library replacement experiment
+experiments/io-plugin/    DaVinci Resolve IOPlugin probe experiment
+test-media/               Small AAC test files
+```
 
 ## License
 

@@ -1,20 +1,29 @@
 build/
 bin/
+**/build/
+**/bin/
 aac_encoder_plugin.dvcp.bundle/
+aac_codec_probe_plugin.dvcp.bundle/
+**/aac_encoder_plugin.dvcp.bundle/
+**/aac_codec_probe_plugin.dvcp.bundle/
 *.o
 *.pyc
 __pycache__/
 .git-local/
 
 # Generated Resolve/FFmpeg artifacts
-aac_codec_probe_plugin.dvcp.bundle/
 ffbuild/
 ffmpeg-6.0/
 ffmpeg-6.0.tar.xz
 ffmpeg-resolve-aac/
 resolve-lib-backups/
+**/ffbuild/
+**/ffmpeg-6.0/
+**/ffmpeg-6.0.tar.xz
+**/ffmpeg-resolve-aac/
+**/resolve-lib-backups/
 Resolve AAC Imports/
 aac_remux/
 
 # Local/generated binaries
-tools/aac_decode_probe
+experiments/ffmpeg-patch/tools/aac_decode_probe
