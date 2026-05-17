@@ -40,9 +40,26 @@ Or clone the repository and run:
 
 This installs command wrappers and Resolve menu scripts for the current user.
 
+Installed commands:
+
+```bash
+resolve-with-aac-mediapool-watch
+resolve-aac-mediapool-watch
+resolve-aac-mediapool-watch-stop
+resolve-aac-current-clip
+resolve-aac-timeline-watch
+resolve-aac-timeline-watch-stop
+```
+
+The same tools are also available in Resolve:
+
+```text
+Workspace -> Scripts -> Edit
+```
+
 ## Start Resolve With AAC Watcher
 
-Use this as the main workflow:
+This is the recommended workflow:
 
 ```bash
 resolve-with-aac-mediapool-watch
@@ -52,7 +69,9 @@ Then drag media into Resolve as usual. AAC media is converted to MOV/PCM and the
 MediaPool item is replaced automatically.
 
 When started in an existing project, the watcher also scans already imported
-online MediaPool clips. Offline media is skipped.
+online MediaPool clips. This also works for projects that already have edited
+clips in the timeline, as long as those timeline clips still reference the
+MediaPool items. Offline media is skipped.
 
 To keep generated files in a cache folder instead of beside the source media:
 
@@ -62,12 +81,23 @@ RESOLVE_AAC_CACHE_DIR="$HOME/.cache/resolve-aac-remux" resolve-with-aac-mediapoo
 
 ## Other Commands
 
+### MediaPool Tools
+
+Use these for already imported media and new imports. This is the recommended
+option for edited projects because it replaces MediaPool items instead of
+directly editing the timeline.
+
 Start or stop only the MediaPool watcher:
 
 ```bash
 resolve-aac-mediapool-watch
 resolve-aac-mediapool-watch-stop
 ```
+
+### Timeline Tools
+
+Use these as a fallback when timeline clips do not update from the MediaPool
+replacement.
 
 Fix timeline clips:
 
@@ -97,10 +127,10 @@ Cached output:
 $RESOLVE_AAC_CACHE_DIR/
 ```
 
-## Experimental FFmpeg Patch
+## Failed Experiment: FFmpeg Patch
 
-Some Resolve Linux builds ship FFmpeg with AAC disabled. This repo includes an
-unsupported patch path that builds AAC-enabled FFmpeg libraries and installs
+Some Resolve Linux builds ship FFmpeg libraries with AAC disabled. This repo
+includes experimental scripts that build AAC-enabled FFmpeg libraries and install
 them into `/opt/resolve/libs` with a backup:
 
 ```bash
@@ -108,11 +138,18 @@ them into `/opt/resolve/libs` with a backup:
 ./install_resolve_ffmpeg_aac.sh
 ```
 
+This did not solve AAC playback reliably in testing. The replacement libraries
+could decode AAC outside Resolve, but Resolve still failed to play AAC audio
+correctly.
+
 Restore the latest backup:
 
 ```bash
 ./restore_resolve_ffmpeg_backup.sh
 ```
+
+This path is unsupported and not recommended for normal use. The code is kept in
+the repository for anyone who wants to continue experimenting.
 
 ## License
 
