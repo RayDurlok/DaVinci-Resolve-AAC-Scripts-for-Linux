@@ -15,6 +15,7 @@ copied, not re-encoded. Original files stay untouched.
 - Python 3
 - `ffmpeg` and `ffprobe`
 - Resolve scripting enabled
+- Optional tray app: PySide6
 
 Tested on Fedora with DaVinci Resolve Studio.
 
@@ -43,23 +44,50 @@ Or clone the repository and run:
 
 This installs all included tools for the current user: command wrappers, Resolve
 menu scripts, the recommended MediaPool watcher, and the optional timeline
-fallback tools.
+fallback tools. The installer checks for `python3`, `ffmpeg`, and `ffprobe` and
+can prompt to install missing dependencies on common Linux distributions. It
+also checks PySide6 and can offer to install it for the optional tray app.
+
+PySide6 is only required for:
+
+```bash
+resolve-aac-tray
+resolve-aac-start
+```
+
+The MediaPool watcher, menu scripts, and command-line tools work without it.
+
+For an unattended install:
+
+```bash
+./install_user_tools.sh --yes
+```
+
+To skip dependency checks:
+
+```bash
+./install_user_tools.sh --no-deps
+```
 
 Installed commands:
 
 ```bash
+resolve-aac-import
+resolve-aac-watch
 resolve-with-aac-mediapool-watch
 resolve-aac-mediapool-watch
 resolve-aac-mediapool-watch-stop
 resolve-aac-current-clip
 resolve-aac-timeline-watch
 resolve-aac-timeline-watch-stop
+resolve-aac-tray
+resolve-aac-start
 ```
 
 The same tools are also available in Resolve:
 
 ```text
-Workspace -> Scripts -> Edit
+Workspace -> Scripts -> Edit -> Resolve AAC Tools
 ```
 
 ## Start Resolve With AAC Watcher
@@ -67,11 +95,12 @@ Workspace -> Scripts -> Edit
 This is the recommended workflow:
 
 ```bash
-resolve-with-aac-mediapool-watch
+resolve-aac-start
 ```
 
-Then drag media into Resolve as usual. AAC media is converted to MOV/PCM and the
-MediaPool item is replaced automatically.
+This opens the tray app and starts Resolve with the MediaPool watcher. Then drag
+media into Resolve as usual. AAC media is converted to MOV/PCM and the MediaPool
+item is replaced automatically.
 
 For best results, import clips into the MediaPool first and then edit them into
 the timeline.
@@ -83,13 +112,47 @@ MediaPool items. Offline media is skipped.
 
 Dragging AAC media directly into the timeline can work, but Resolve may keep an
 old waveform cache. In that case audio can play while the waveform is missing.
-Use `resolve-aac-current-clip` or `resolve-aac-timeline-watch` as a fallback.
+Restarting Resolve usually rebuilds the waveform. You can also use
+`resolve-aac-current-clip` or `resolve-aac-timeline-watch` as a fallback.
 
 To keep generated files in a cache folder instead of beside the source media:
 
 ```bash
 RESOLVE_AAC_CACHE_DIR="$HOME/.cache/resolve-aac-remux" resolve-with-aac-mediapool-watch
 ```
+
+## Tray App
+
+The optional tray app can start Resolve with the MediaPool watcher and choose
+where generated MOV/PCM files are stored:
+
+```bash
+resolve-aac-tray
+```
+
+Left-click the tray icon to start Resolve with the MediaPool watcher. Right-click
+it to open settings and actions.
+
+To open the tray and start Resolve immediately:
+
+```bash
+resolve-aac-start
+```
+
+It can switch between:
+
+- cache folder output, for example `~/.cache/resolve-aac-remux`
+- source-folder output, using `<source-folder>/aac_remux/`
+- tray autostart at login
+
+The tray app requires PySide6. If PySide6 is missing, the CLI tools and Resolve
+menu scripts still work.
+
+Tray autostart only opens the tray icon. Resolve starts when you left-click the
+tray icon or run `resolve-aac-start`.
+
+When Resolve is started through the tray or `resolve-aac-start`, closing Resolve
+also stops the MediaPool watcher. The tray icon stays available.
 
 ## Other Commands
 

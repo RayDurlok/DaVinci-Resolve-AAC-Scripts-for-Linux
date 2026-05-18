@@ -105,9 +105,13 @@ def common_root(paths):
         return Path(os.path.commonpath([str(path) for path in paths]))
 
 
-def safe_output_name(input_path):
+def output_digest(input_path):
     digest = hashlib.sha1(str(input_path).encode("utf-8")).hexdigest()[:8]
-    return f"{input_path.stem}_resolve_pcm_{digest}.mov"
+    return digest
+
+
+def safe_output_name(input_path):
+    return f"{input_path.stem}_remux_{output_digest(input_path)}.mov"
 
 
 def output_path_for(input_path, output_dir, root, flat):
@@ -139,6 +143,10 @@ def build_ffmpeg_command(input_path, output_path, probe, overwrite):
 
 
 def convert(input_path, output_dir, root, flat, overwrite, dry_run, quiet):
+    output_path = output_path_for(input_path, output_dir, root, flat)
+    if output_path.exists() and not overwrite:
+        return JobResult(input_path, output_path, "exists", "already converted")
+
     try:
         probe = ffprobe(input_path)
     except subprocess.CalledProcessError as exc:
@@ -147,10 +155,6 @@ def convert(input_path, output_dir, root, flat, overwrite, dry_run, quiet):
     streams = aac_audio_streams(probe)
     if not streams:
         return JobResult(input_path, None, "skipped", "no AAC audio")
-
-    output_path = output_path_for(input_path, output_dir, root, flat)
-    if output_path.exists() and not overwrite:
-        return JobResult(input_path, output_path, "exists", "already converted")
 
     command = build_ffmpeg_command(input_path, output_path, probe, overwrite)
     if dry_run:

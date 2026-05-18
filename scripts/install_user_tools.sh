@@ -5,8 +5,120 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 APPS_DIR="$HOME/.local/share/applications"
 RESOLVE_SCRIPTS_DIR="$HOME/.local/share/DaVinciResolve/Fusion/Scripts/Edit"
+RESOLVE_AAC_SCRIPTS_DIR="$RESOLVE_SCRIPTS_DIR/Resolve AAC Tools"
+ASSUME_YES=0
+SKIP_DEPS=0
 
-mkdir -p "$BIN_DIR" "$APPS_DIR" "$RESOLVE_SCRIPTS_DIR" "$HOME/Resolve AAC Inbox" "$HOME/Resolve AAC Imports"
+for arg in "$@"; do
+  case "$arg" in
+    -y|--yes)
+      ASSUME_YES=1
+      ;;
+    --no-deps)
+      SKIP_DEPS=1
+      ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Usage: $0 [--yes] [--no-deps]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+prompt_yes_no() {
+  local question="$1"
+  if [ "$ASSUME_YES" -eq 1 ]; then
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    return 1
+  fi
+  read -r -p "$question [y/N] " answer
+  case "$answer" in
+    y|Y|yes|YES)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+install_required_deps() {
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y python3 ffmpeg
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y python3 ffmpeg
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --needed python ffmpeg
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper install -y python3 ffmpeg
+  else
+    echo "Could not detect a supported package manager."
+    echo "Please install python3, ffmpeg, and ffprobe manually."
+    return 1
+  fi
+}
+
+install_tray_deps() {
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y python3-pyside6
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --needed pyside6
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper install -y python3-pyside6
+  else
+    echo "Automatic PySide6 installation is not configured for this distro."
+    echo "Install PySide6 manually to use the tray app."
+    return 1
+  fi
+}
+
+check_dependencies() {
+  if [ "$SKIP_DEPS" -eq 1 ]; then
+    return 0
+  fi
+
+  missing_required=()
+  for command in python3 ffmpeg ffprobe; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+      missing_required+=("$command")
+    fi
+  done
+
+  if [ "${#missing_required[@]}" -gt 0 ]; then
+    echo "Missing required dependencies: ${missing_required[*]}"
+    if prompt_yes_no "Install required dependencies now?"; then
+      install_required_deps
+    else
+      echo "Please install missing dependencies before using the tools."
+    fi
+  fi
+
+  if [ -x /opt/resolve/bin/resolve ]; then
+    :
+  else
+    echo "Warning: /opt/resolve/bin/resolve was not found."
+    echo "Install DaVinci Resolve or adjust the launcher script if Resolve is elsewhere."
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    if ! python3 -c "import PySide6" >/dev/null 2>&1; then
+      echo "Optional tray app dependency missing: PySide6"
+      echo "PySide6 is only needed for resolve-aac-tray. The CLI and Resolve menu scripts work without it."
+      if prompt_yes_no "Install PySide6 now for the tray app?"; then
+        install_tray_deps || true
+      else
+        echo "Skipping tray dependency. CLI and Resolve menu scripts will still work."
+      fi
+    fi
+  fi
+}
+
+check_dependencies
+
+mkdir -p "$BIN_DIR" "$APPS_DIR" "$RESOLVE_AAC_SCRIPTS_DIR" "$HOME/Resolve AAC Inbox" "$HOME/Resolve AAC Imports"
 
 cat > "$BIN_DIR/resolve-aac-import" <<EOF
 #!/usr/bin/env bash
@@ -56,11 +168,38 @@ exec "$APP_DIR/resolve-with-aac-mediapool-watch.sh" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-with-aac-mediapool-watch"
 
-ln -sf "$APP_DIR/resolve_aac_timeline.py" "$RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py"
-ln -sf "$APP_DIR/resolve_aac_timeline_watch.py" "$RESOLVE_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
-ln -sf "$APP_DIR/resolve_aac_timeline_watch_stop.py" "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
-ln -sf "$APP_DIR/resolve_aac_mediapool_watch.py" "$RESOLVE_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
-ln -sf "$APP_DIR/resolve_aac_mediapool_watch_stop.py" "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
+cat > "$BIN_DIR/resolve-aac-tray" <<EOF
+#!/usr/bin/env bash
+exec "$APP_DIR/resolve_aac_tray.py" "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-aac-tray"
+
+cat > "$BIN_DIR/resolve-aac-start" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
+  mkdir -p "\$HOME/.config/resolve-aac-tools"
+  : > "\$HOME/.config/resolve-aac-tools/start_resolve.request"
+  exit 0
+fi
+
+exec "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-aac-start"
+
+rm -f \
+  "$RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py" \
+  "$RESOLVE_SCRIPTS_DIR/Resolve AAC Timeline Watch.py" \
+  "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py" \
+  "$RESOLVE_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py" \
+  "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
+
+ln -sf "$APP_DIR/resolve_aac_timeline.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"
+ln -sf "$APP_DIR/resolve_aac_timeline_watch.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
+ln -sf "$APP_DIR/resolve_aac_timeline_watch_stop.py" "$RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
+ln -sf "$APP_DIR/resolve_aac_mediapool_watch.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
+ln -sf "$APP_DIR/resolve_aac_mediapool_watch_stop.py" "$RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
 
 cat > "$APPS_DIR/resolve-aac-importer.desktop" <<EOF
 [Desktop Entry]
@@ -103,6 +242,26 @@ Terminal=false
 Categories=AudioVideo;Video;
 EOF
 
+cat > "$APPS_DIR/resolve-aac-tray.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Resolve AAC Tools
+Comment=Configure and start Resolve AAC watchers from the system tray
+Exec=$BIN_DIR/resolve-aac-tray
+Terminal=false
+Categories=AudioVideo;Video;
+EOF
+
+cat > "$APPS_DIR/resolve-aac-start.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=DaVinci Resolve AAC
+Comment=Start DaVinci Resolve with the AAC MediaPool watcher and tray controls
+Exec=$BIN_DIR/resolve-aac-start
+Terminal=false
+Categories=AudioVideo;Video;
+EOF
+
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
 fi
@@ -116,15 +275,19 @@ echo "  $BIN_DIR/resolve-aac-timeline-watch-stop"
 echo "  $BIN_DIR/resolve-aac-mediapool-watch"
 echo "  $BIN_DIR/resolve-aac-mediapool-watch-stop"
 echo "  $BIN_DIR/resolve-with-aac-mediapool-watch"
-echo "  $RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py"
-echo "  $RESOLVE_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
-echo "  $RESOLVE_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
-echo "  $RESOLVE_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
-echo "  $RESOLVE_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
+echo "  $BIN_DIR/resolve-aac-tray"
+echo "  $BIN_DIR/resolve-aac-start"
+echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"
+echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
+echo "  $RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
+echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
+echo "  $RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
 echo "  $APPS_DIR/resolve-aac-importer.desktop"
 echo "  $APPS_DIR/resolve-aac-watcher.desktop"
 echo "  $APPS_DIR/resolve-with-aac-mediapool-watch.desktop"
 echo "  $APPS_DIR/resolve-with-aac-mediapool-cache.desktop"
+echo "  $APPS_DIR/resolve-aac-tray.desktop"
+echo "  $APPS_DIR/resolve-aac-start.desktop"
 echo
 echo "Inbox:  $HOME/Resolve AAC Inbox"
 echo "Output: $HOME/Resolve AAC Imports"
