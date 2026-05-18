@@ -61,7 +61,7 @@ install_required_deps() {
   fi
 }
 
-install_tray_deps() {
+install_pyside6() {
   if command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y python3-pyside6
   elif command -v pacman >/dev/null 2>&1; then
@@ -70,7 +70,8 @@ install_tray_deps() {
     sudo zypper install -y python3-pyside6
   else
     echo "Automatic PySide6 installation is not configured for this distro."
-    echo "Install PySide6 manually to use the tray app."
+    echo "Install PySide6 manually, then run this installer again."
+    echo "Package examples: Fedora/openSUSE: python3-pyside6, Arch: pyside6."
     return 1
   fi
 }
@@ -105,12 +106,12 @@ check_dependencies() {
 
   if command -v python3 >/dev/null 2>&1; then
     if ! python3 -c "import PySide6" >/dev/null 2>&1; then
-      echo "Optional tray app dependency missing: PySide6"
-      echo "PySide6 is only needed for resolve-aac-tray. The CLI and Resolve menu scripts work without it."
-      if prompt_yes_no "Install PySide6 now for the tray app?"; then
-        install_tray_deps || true
+      echo "Missing tray app dependency: PySide6"
+      echo "PySide6 is required for the main tray app. CLI and Resolve menu scripts are fallback tools only."
+      if prompt_yes_no "Install PySide6 now?"; then
+        install_pyside6 || true
       else
-        echo "Skipping tray dependency. CLI and Resolve menu scripts will still work."
+        echo "Skipping PySide6. The main tray app will not start until PySide6 is installed."
       fi
     fi
   fi

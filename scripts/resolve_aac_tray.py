@@ -36,12 +36,15 @@ AUTOSTART_PATH = AUTOSTART_DIR / "resolve-aac-tray.desktop"
 INSTALLED_TRAY_COMMAND = Path.home() / ".local" / "bin" / "resolve-aac-tray"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "resolve-aac-remux"
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
+STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
+MANUAL_RESOLVE_CHECK_MS = 10000
 
 
 def load_config():
     defaults = {
         "use_cache": True,
         "cache_dir": str(DEFAULT_CACHE_DIR),
+        "watch_manual_resolve": True,
     }
     try:
         data = json.loads(CONFIG_PATH.read_text())
@@ -106,6 +109,8 @@ class ResolveAacTray:
         self.app.setQuitOnLastWindowClosed(False)
         self.config = load_config()
         self.process = None
+        self.watcher_process = None
+        self.manual_resolve_was_running = False
 
         icon = QIcon.fromTheme("media-playback-start")
         if icon.isNull():
@@ -149,6 +154,13 @@ class ResolveAacTray:
         self.autostart_action.toggled.connect(self.set_autostart)
         self.menu.addAction(self.autostart_action)
 
+        self.watch_manual_action = QAction("Watch manual Resolve starts")
+        self.watch_manual_action.setCheckable(True)
+        self.watch_manual_action.setChecked(bool(self.config["watch_manual_resolve"]))
+        self.watch_manual_action.setToolTip("Start the MediaPool watcher when Resolve is opened outside this tray.")
+        self.watch_manual_action.toggled.connect(self.set_watch_manual_resolve)
+        self.menu.addAction(self.watch_manual_action)
+
         self.choose_cache_action = QAction("Choose cache folder...")
         self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
         self.choose_cache_action.triggered.connect(self.choose_cache_folder)
@@ -178,6 +190,11 @@ class ResolveAacTray:
         self.timer = QTimer()
         self.timer.timeout.connect(self.tick)
         self.timer.start(1000)
+
+        self.manual_resolve_timer = QTimer()
+        self.manual_resolve_timer.timeout.connect(self.check_manual_resolve)
+        self.manual_resolve_timer.start(MANUAL_RESOLVE_CHECK_MS)
+
         self.update_status()
 
         if start_resolve:
@@ -195,6 +212,60 @@ class ResolveAacTray:
     def stop_path(self):
         return SCRIPT_DIR / "resolve_aac_mediapool_watch_stop.py"
 
+    def watcher_path(self):
+        return SCRIPT_DIR / "resolve_aac_mediapool_watch.py"
+
+    def current_env(self):
+        env = os.environ.copy()
+        if self.config["use_cache"]:
+            cache_dir = Path(self.config["cache_dir"]).expanduser()
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            env["RESOLVE_AAC_CACHE_DIR"] = str(cache_dir)
+        else:
+            env.pop("RESOLVE_AAC_CACHE_DIR", None)
+        return env
+
+    def watcher_args(self):
+        args = [
+            sys.executable,
+            str(self.watcher_path()),
+            "--interval",
+            os.environ.get("RESOLVE_AAC_WATCH_INTERVAL", "5"),
+            "--quiet",
+        ]
+        if self.config["use_cache"]:
+            cache_dir = Path(self.config["cache_dir"]).expanduser()
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            args.extend(["--cache-dir", str(cache_dir)])
+        return args
+
+    def resolve_is_running(self):
+        try:
+            result = subprocess.run(
+                ["pgrep", "-u", str(os.getuid()), "-f", "/opt/resolve/bin/resolve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    def watcher_is_running(self):
+        if self.watcher_process and self.watcher_process.poll() is None:
+            return True
+
+        try:
+            result = subprocess.run(
+                ["pgrep", "-u", str(os.getuid()), "-f", "resolve_aac_mediapool_watch.py"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
     def start_resolve(self):
         if self.process and self.process.poll() is None:
             self.notify("Resolve AAC Tools", "Resolve launcher is already running.")
@@ -205,21 +276,44 @@ class ResolveAacTray:
             self.error("Missing launcher", f"Could not find:\n{launcher}")
             return
 
-        env = os.environ.copy()
-        if self.config["use_cache"]:
-            cache_dir = Path(self.config["cache_dir"]).expanduser()
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            env["RESOLVE_AAC_CACHE_DIR"] = str(cache_dir)
-        else:
-            env.pop("RESOLVE_AAC_CACHE_DIR", None)
-
         try:
-            self.process = subprocess.Popen([str(launcher)], env=env)
+            self.process = subprocess.Popen([str(launcher)], env=self.current_env())
         except Exception as exc:
             self.error("Could not start Resolve", str(exc))
             return
 
         self.notify("Resolve AAC Tools", "Started Resolve with MediaPool watcher.")
+        self.update_status()
+
+    def start_watcher_for_manual_resolve(self):
+        watcher = self.watcher_path()
+        if not watcher.exists():
+            self.error("Missing watcher", f"Could not find:\n{watcher}")
+            return
+
+        if self.watcher_is_running():
+            return
+
+        try:
+            STOP_PATH.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+
+        try:
+            log_file = LOG_PATH.open("a")
+            self.watcher_process = subprocess.Popen(
+                self.watcher_args(),
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=self.current_env(),
+            )
+        except Exception as exc:
+            self.error("Could not start watcher", str(exc))
+            return
+
+        self.notify("Resolve AAC Tools", "Resolve detected. Started MediaPool watcher.")
         self.update_status()
 
     def stop_watcher(self):
@@ -239,6 +333,11 @@ class ResolveAacTray:
 
     def set_use_cache(self, enabled):
         self.config["use_cache"] = bool(enabled)
+        save_config(self.config)
+        self.update_status()
+
+    def set_watch_manual_resolve(self, enabled):
+        self.config["watch_manual_resolve"] = bool(enabled)
         save_config(self.config)
         self.update_status()
 
@@ -276,9 +375,15 @@ class ResolveAacTray:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def update_status(self):
-        running = self.process is not None and self.process.poll() is None
+        launcher_running = self.process is not None and self.process.poll() is None
+        watcher_running = self.watcher_is_running()
         mode = "cache folder" if self.config["use_cache"] else "source folders"
-        status = "Running" if running else "Stopped"
+        if launcher_running:
+            status = "Resolve launcher running"
+        elif watcher_running:
+            status = "Watcher running"
+        else:
+            status = "Stopped"
         self.status_action.setText(f"{status} - output: {mode}")
         self.stop_action.setEnabled(True)
         self.open_cache_action.setEnabled(bool(self.config["use_cache"]))
@@ -306,6 +411,23 @@ class ResolveAacTray:
     def tick(self):
         self.update_status()
         self.consume_start_request()
+
+    def check_manual_resolve(self):
+        if not self.config["watch_manual_resolve"]:
+            self.manual_resolve_was_running = self.resolve_is_running()
+            return
+
+        if self.process and self.process.poll() is None:
+            self.manual_resolve_was_running = True
+            return
+
+        resolve_running = self.resolve_is_running()
+        if resolve_running:
+            self.start_watcher_for_manual_resolve()
+        elif self.manual_resolve_was_running and self.watcher_process:
+            self.stop_watcher()
+
+        self.manual_resolve_was_running = resolve_running
 
     def on_activated(self, reason):
         if reason == QSystemTrayIcon.Trigger:
