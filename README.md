@@ -2,6 +2,9 @@
 
 Inspired by: https://github.com/jchai01/davinci-resolve-aac-workaround-macro
 
+Optional AAC export plugin by Toxblh:
+https://github.com/Toxblh/davinci-linux-aac-codec
+
 A small Linux tray app for DaVinci Resolve projects that contain AAC audio.
 
 It watches Resolve, converts AAC audio to Resolve-friendly PCM, and replaces
@@ -49,6 +52,7 @@ Tray basics:
 - Right-click the tray icon to change settings.
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Enable `Start tray at login` if you want the tray icon available after login.
+- Use `AAC export plugin: Install` once if you also want AAC as an export option.
 
 The tray can store generated MOV/PCM files either in a cache folder or beside the
 source media in `<source-folder>/aac_remux/`.
@@ -112,6 +116,11 @@ resolve-aac-start
 
 When Resolve is started through the tray or `resolve-aac-start`, closing Resolve
 also stops the MediaPool watcher. The tray icon stays available.
+
+The optional AAC export plugin is separate from the watcher. It comes from
+Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
+`IOPlugins` folder. Resolve loads it on startup, so restart Resolve after
+installing it.
 
 ## Optional Tools
 

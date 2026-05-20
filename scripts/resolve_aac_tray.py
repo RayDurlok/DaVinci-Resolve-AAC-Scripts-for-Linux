@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
+import urllib.request
 from pathlib import Path
 
 try:
@@ -38,6 +43,21 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "resolve-aac-remux"
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
 MANUAL_RESOLVE_CHECK_MS = 10000
+EXPORT_PLUGIN_VERSION = "v1.0.1"
+EXPORT_PLUGIN_URL = (
+    "https://github.com/Toxblh/davinci-linux-aac-codec/releases/download/"
+    f"{EXPORT_PLUGIN_VERSION}/aac_encoder_plugin-linux-bundle.tar.gz"
+)
+EXPORT_PLUGIN_SHA256 = "fc0ef6af76f33b3d2a8d4b03385837e8f014a35dbd2afb311a82c5d57c59136f"
+EXPORT_PLUGIN_BUNDLE = "aac_encoder_plugin.dvcp.bundle"
+EXPORT_PLUGIN_FILE = "aac_encoder_plugin.dvcp"
+EXPORT_PLUGIN_TARGET_DIR = (
+    Path("/opt/resolve/IOPlugins")
+    / EXPORT_PLUGIN_BUNDLE
+    / "Contents"
+    / "Linux-x86-64"
+)
+EXPORT_PLUGIN_TARGET_FILE = EXPORT_PLUGIN_TARGET_DIR / EXPORT_PLUGIN_FILE
 
 
 def load_config():
@@ -161,6 +181,11 @@ class ResolveAacTray:
         self.watch_manual_action.toggled.connect(self.set_watch_manual_resolve)
         self.menu.addAction(self.watch_manual_action)
 
+        self.export_plugin_action = QAction("Install AAC export plugin")
+        self.export_plugin_action.setToolTip("Install once; status changes to installed when the export plugin is present.")
+        self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
+        self.menu.addAction(self.export_plugin_action)
+
         self.choose_cache_action = QAction("Choose cache folder...")
         self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
         self.choose_cache_action.triggered.connect(self.choose_cache_folder)
@@ -266,6 +291,55 @@ class ResolveAacTray:
             return False
         return result.returncode == 0
 
+    def export_plugin_installed(self):
+        return EXPORT_PLUGIN_TARGET_FILE.exists()
+
+    def download_export_plugin(self, archive_path):
+        with urllib.request.urlopen(EXPORT_PLUGIN_URL, timeout=30) as response:
+            archive_path.write_bytes(response.read())
+
+        digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+        if digest != EXPORT_PLUGIN_SHA256:
+            raise RuntimeError(
+                "Downloaded AAC export plugin checksum did not match the expected release."
+            )
+
+    def install_export_plugin_file(self, source_file):
+        try:
+            EXPORT_PLUGIN_TARGET_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_file, EXPORT_PLUGIN_TARGET_FILE)
+            return
+        except OSError:
+            pass
+
+        if not shutil.which("pkexec"):
+            raise RuntimeError("Installing to /opt/resolve/IOPlugins requires pkexec or write access.")
+
+        subprocess.run(["pkexec", "mkdir", "-p", str(EXPORT_PLUGIN_TARGET_DIR)], check=True)
+        subprocess.run(["pkexec", "cp", str(source_file), str(EXPORT_PLUGIN_TARGET_FILE)], check=True)
+
+    def install_export_plugin(self):
+        if self.export_plugin_installed():
+            self.notify("Resolve AAC Tools", "AAC export plugin is already installed.")
+            return
+
+        self.notify("Resolve AAC Tools", "Downloading AAC export plugin...")
+        with tempfile.TemporaryDirectory(prefix="resolve-aac-export-plugin-") as raw_tmp:
+            tmp = Path(raw_tmp)
+            archive_path = tmp / "aac_encoder_plugin-linux-bundle.tar.gz"
+            self.download_export_plugin(archive_path)
+
+            with tarfile.open(archive_path, "r:gz") as archive:
+                archive.extractall(tmp)
+
+            source_file = tmp / EXPORT_PLUGIN_BUNDLE / "Contents" / "Linux-x86-64" / EXPORT_PLUGIN_FILE
+            if not source_file.exists():
+                raise RuntimeError("Downloaded AAC export plugin archive did not contain the plugin file.")
+
+            self.install_export_plugin_file(source_file)
+
+        self.notify("Resolve AAC Tools", "AAC export plugin installed. Restart Resolve to use it.")
+
     def start_resolve(self):
         if self.process and self.process.poll() is None:
             self.notify("Resolve AAC Tools", "Resolve launcher is already running.")
@@ -341,6 +415,19 @@ class ResolveAacTray:
         save_config(self.config)
         self.update_status()
 
+    def handle_export_plugin_action(self):
+        if self.export_plugin_installed():
+            self.update_export_plugin_action()
+            self.notify("Resolve AAC Tools", "AAC export plugin is already installed.")
+            return
+
+        try:
+            self.install_export_plugin()
+        except Exception as exc:
+            self.error("Could not install AAC export plugin", str(exc))
+
+        self.update_export_plugin_action()
+
     def set_autostart(self, enabled):
         try:
             if enabled:
@@ -396,6 +483,15 @@ class ResolveAacTray:
                 "Right-click: settings",
             ])
         )
+        self.update_export_plugin_action()
+
+    def update_export_plugin_action(self):
+        installed = self.export_plugin_installed()
+        self.export_plugin_action.blockSignals(True)
+        self.export_plugin_action.setText(
+            "AAC export plugin: ✓ Installed" if installed else "AAC export plugin: Install"
+        )
+        self.export_plugin_action.blockSignals(False)
 
     def consume_start_request(self):
         if not START_REQUEST_PATH.exists():
