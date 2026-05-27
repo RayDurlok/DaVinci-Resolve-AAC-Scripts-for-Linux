@@ -177,7 +177,16 @@ chmod +x "$BIN_DIR/resolve-with-fonts"
 
 cat > "$BIN_DIR/resolve-aac-tray" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_tray.py" "\$@"
+set -euo pipefail
+
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+
+if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
+  exit 0
+fi
+
+setsid "$APP_DIR/resolve_aac_tray.py" "\$@" >>"\$LOG" 2>&1 </dev/null &
+disown || true
 EOF
 chmod +x "$BIN_DIR/resolve-aac-tray"
 
@@ -191,7 +200,9 @@ if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   exit 0
 fi
 
-exec "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@"
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+setsid "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev/null &
+disown || true
 EOF
 chmod +x "$BIN_DIR/resolve-aac-start"
 
@@ -274,6 +285,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
 fi
 
 echo "Installed:"
+echo "  $APP_DIR/uninstall_user_tools.sh"
 echo "  $BIN_DIR/resolve-aac-import"
 echo "  $BIN_DIR/resolve-aac-watch"
 echo "  $BIN_DIR/resolve-aac-current-clip"

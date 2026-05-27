@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 
 try:
-    from PySide6.QtCore import QTimer, QUrl
+    from PySide6.QtCore import QObject, QTimer, QUrl
     from PySide6.QtGui import QAction, QDesktopServices, QIcon
     from PySide6.QtWidgets import (
         QApplication,
@@ -67,7 +67,7 @@ EXPORT_PLUGIN_TARGET_FILE = EXPORT_PLUGIN_TARGET_DIR / EXPORT_PLUGIN_FILE
 
 def load_config():
     defaults = {
-        "use_cache": True,
+        "use_cache": False,
         "cache_dir": str(DEFAULT_CACHE_DIR),
         "watch_manual_resolve": True,
     }
@@ -128,9 +128,10 @@ def parse_args():
     return parser.parse_args()
 
 
-class ResolveAacTray:
+class ResolveAacTray(QObject):
     def __init__(self, start_resolve=False):
         self.app = QApplication(sys.argv)
+        super().__init__()
         self.app.setQuitOnLastWindowClosed(False)
         self.config = load_config()
         self.process = None
@@ -191,22 +192,12 @@ class ResolveAacTray:
         self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
         self.menu.addAction(self.export_plugin_action)
 
-        self.uninstall_export_plugin_action = QAction("Uninstall AAC export plugin")
-        self.uninstall_export_plugin_action.setToolTip("Remove the AAC export plugin from Resolve's IOPlugins folder.")
-        self.uninstall_export_plugin_action.triggered.connect(self.handle_uninstall_export_plugin_action)
-        self.menu.addAction(self.uninstall_export_plugin_action)
-
-        self.resolve_font_action = QAction("Resolve font fix: Apply")
+        self.resolve_font_action = QAction("Resolve font fix: Install")
         self.resolve_font_action.setToolTip(
             "Make Resolve and Fusion scan user-installed font folders such as /usr/local/share/fonts."
         )
         self.resolve_font_action.triggered.connect(self.handle_resolve_font_action)
         self.menu.addAction(self.resolve_font_action)
-
-        self.uninstall_resolve_font_action = QAction("Uninstall Resolve font fix")
-        self.uninstall_resolve_font_action.setToolTip("Remove the Resolve font wrapper and desktop override.")
-        self.uninstall_resolve_font_action.triggered.connect(self.handle_uninstall_resolve_font_action)
-        self.menu.addAction(self.uninstall_resolve_font_action)
 
         self.choose_cache_action = QAction("Choose cache folder...")
         self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
@@ -645,10 +636,25 @@ Name[en_US]=DaVinci Resolve
         save_config(self.config)
         self.update_status()
 
+    def confirm_uninstall(self, title, message):
+        result = QMessageBox.question(
+            None,
+            title,
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return result == QMessageBox.Yes
+
     def handle_export_plugin_action(self):
         if self.export_plugin_installed():
-            self.update_export_plugin_action()
-            self.notify("Resolve AAC Tools", "AAC export plugin is already installed.")
+            if self.confirm_uninstall(
+                "Uninstall AAC export plugin?",
+                "Remove the AAC export plugin from Resolve's IOPlugins folder?",
+            ):
+                self.handle_uninstall_export_plugin_action()
+            else:
+                self.update_export_plugin_action()
             return
 
         try:
@@ -668,13 +674,19 @@ Name[en_US]=DaVinci Resolve
 
     def handle_resolve_font_action(self):
         if self.resolve_font_fix_installed():
-            self.update_resolve_font_action()
-            self.notify("Resolve AAC Tools", "Resolve font fix is already installed.")
+            if self.confirm_uninstall(
+                "Uninstall Resolve font fix?",
+                "Remove the Resolve font wrapper and desktop override?",
+            ):
+                self.handle_uninstall_resolve_font_action()
+            else:
+                self.update_resolve_font_action()
             return
 
         try:
             self.install_resolve_font_fix()
         except Exception as exc:
+            self.update_resolve_font_action()
             self.error("Could not apply Resolve font fix", str(exc))
             return
 
@@ -754,16 +766,14 @@ Name[en_US]=DaVinci Resolve
             "AAC export plugin: ✓ Installed" if installed else "AAC export plugin: Install"
         )
         self.export_plugin_action.blockSignals(False)
-        self.uninstall_export_plugin_action.setEnabled(installed)
 
     def update_resolve_font_action(self):
         installed = self.resolve_font_fix_installed()
         self.resolve_font_action.blockSignals(True)
         self.resolve_font_action.setText(
-            "Resolve font fix: Installed" if installed else "Resolve font fix: Apply"
+            "Resolve font fix: ✓ Installed" if installed else "Resolve font fix: Install"
         )
         self.resolve_font_action.blockSignals(False)
-        self.uninstall_resolve_font_action.setEnabled(installed)
 
     def consume_start_request(self):
         if not START_REQUEST_PATH.exists():

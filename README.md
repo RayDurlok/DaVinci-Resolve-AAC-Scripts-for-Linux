@@ -44,6 +44,10 @@ Start the tray app:
 resolve-aac-tray
 ```
 
+The installed `resolve-aac-tray` command starts the tray in the background and
+returns your terminal immediately. Its startup log is written to
+`/tmp/resolve_aac_tray.log`.
+
 Then work in Resolve as usual.
 
 Tray basics:
@@ -51,13 +55,15 @@ Tray basics:
 - Left-click the tray icon to start Resolve with AAC watching.
 - Right-click the tray icon to change settings.
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
-- Enable `Start tray at login` if you want the tray icon available after login.
+- Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
 - Use `AAC export plugin: Install` once if you also want AAC as an export option.
-- Use `Resolve font fix: Apply` once if Resolve/Fusion does not see user-installed fonts.
-- Use the matching `Uninstall` actions if you want to remove either optional install.
+- Use `Resolve font fix: Install` once if Resolve/Fusion does not see user-installed fonts.
+- Click either optional install entry again after it shows `Installed` to uninstall it.
 
 The tray can store generated MOV/PCM files either in a cache folder or beside the
-source media in `<source-folder>/aac_remux/`.
+source media in `<source-folder>/aac_remux/`. Fresh installs use source folders
+by default. If you enable `Use cache folder`, the default cache path is
+`~/.cache/resolve-aac-remux`.
 
 ## Install Notes
 
@@ -83,6 +89,16 @@ To skip dependency checks:
 ```bash
 ./install_user_tools.sh --no-deps
 ```
+
+To uninstall the user tools from a release folder or source checkout:
+
+```bash
+./uninstall_user_tools.sh
+```
+
+The uninstaller removes the commands, desktop files, Resolve menu scripts,
+autostart entry, config, and optional font-fix desktop override. It keeps cached
+remux files in `~/.cache/resolve-aac-remux` unless you pass `--remove-cache`.
 
 PySide6 is required for the tray app:
 
