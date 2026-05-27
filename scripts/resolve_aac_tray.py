@@ -627,8 +627,13 @@ Name[en_US]=DaVinci Resolve
         self.update_status()
 
     def set_use_cache(self, enabled):
+        watcher_was_running = self.watcher_is_running()
         self.config["use_cache"] = bool(enabled)
         save_config(self.config)
+        if watcher_was_running and self.resolve_is_running():
+            self.stop_watcher()
+            QTimer.singleShot(1000, self.start_watcher_for_manual_resolve)
+            self.notify("Resolve AAC Tools", "Restarting watcher with updated output settings.")
         self.update_status()
 
     def set_watch_manual_resolve(self, enabled):
