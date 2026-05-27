@@ -24,7 +24,7 @@ Tested on Fedora with DaVinci Resolve Studio.
 Enable scripting in Resolve:
 
 ```text
-Preferences -> System -> General -> External scripting
+Preferences -> System -> General -> External scripting using: Local
 ```
 
 ## Quick Start
