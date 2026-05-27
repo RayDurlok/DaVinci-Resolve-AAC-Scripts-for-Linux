@@ -169,6 +169,12 @@ exec "$APP_DIR/resolve-with-aac-mediapool-watch.sh" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-with-aac-mediapool-watch"
 
+cat > "$BIN_DIR/resolve-with-fonts" <<EOF
+#!/usr/bin/env bash
+exec "$APP_DIR/resolve-with-fonts.sh" "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-with-fonts"
+
 cat > "$BIN_DIR/resolve-aac-tray" <<EOF
 #!/usr/bin/env bash
 exec "$APP_DIR/resolve_aac_tray.py" "\$@"
@@ -276,6 +282,7 @@ echo "  $BIN_DIR/resolve-aac-timeline-watch-stop"
 echo "  $BIN_DIR/resolve-aac-mediapool-watch"
 echo "  $BIN_DIR/resolve-aac-mediapool-watch-stop"
 echo "  $BIN_DIR/resolve-with-aac-mediapool-watch"
+echo "  $BIN_DIR/resolve-with-fonts"
 echo "  $BIN_DIR/resolve-aac-tray"
 echo "  $BIN_DIR/resolve-aac-start"
 echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"

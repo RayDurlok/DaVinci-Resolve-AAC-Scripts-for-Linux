@@ -7,6 +7,32 @@ STOP="/tmp/resolve_aac_mediapool_watch.stop"
 WATCH_INTERVAL="${RESOLVE_AAC_WATCH_INTERVAL:-5}"
 WATCH_DELAY="${RESOLVE_AAC_WATCH_DELAY:-15}"
 WATCH_ARGS=(--interval "$WATCH_INTERVAL" --quiet)
+FONT_WRAPPER="$HOME/.local/bin/resolve-with-fonts"
+RESOLVE_DESKTOP="$HOME/.local/share/applications/com.blackmagicdesign.resolve.desktop"
+
+if [[ "${RESOLVE_FONT_FIX:-0}" == "1" ]] || {
+  [[ -x "$FONT_WRAPPER" ]] &&
+  [[ -f "$RESOLVE_DESKTOP" ]] &&
+  grep -Fq "Exec=$FONT_WRAPPER" "$RESOLVE_DESKTOP"
+}; then
+  FONT_DIRS="/usr/share/fonts;/usr/local/share/fonts"
+
+  if [[ -d /usr/local/share/fonts ]]; then
+    while IFS= read -r font_dir; do
+      FONT_DIRS+=";$font_dir"
+    done < <(find /usr/local/share/fonts -mindepth 1 -maxdepth 1 -type d | sort)
+  fi
+
+  if [[ -d "$HOME/.local/share/fonts" ]]; then
+    FONT_DIRS+=";$HOME/.local/share/fonts"
+  fi
+
+  if [[ -d "$HOME/.fonts" ]]; then
+    FONT_DIRS+=";$HOME/.fonts"
+  fi
+
+  export FUSION_FONTS="${FUSION_FONTS:+$FUSION_FONTS;}$FONT_DIRS"
+fi
 
 if [[ -n "${RESOLVE_AAC_CACHE_DIR:-}" ]]; then
   WATCH_ARGS+=(--cache-dir "$RESOLVE_AAC_CACHE_DIR")

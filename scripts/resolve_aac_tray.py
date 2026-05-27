@@ -42,6 +42,11 @@ INSTALLED_TRAY_COMMAND = Path.home() / ".local" / "bin" / "resolve-aac-tray"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "resolve-aac-remux"
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
+RESOLVE_FONT_WRAPPER_PATH = Path.home() / ".local" / "bin" / "resolve-with-fonts"
+RESOLVE_DESKTOP_OVERRIDE_PATH = (
+    Path.home() / ".local" / "share" / "applications" / "com.blackmagicdesign.resolve.desktop"
+)
+FUSION_PREFS_PATH = Path.home() / ".local" / "share" / "DaVinciResolve" / "Fusion" / "Profiles" / "Default" / "Fusion.prefs"
 MANUAL_RESOLVE_CHECK_MS = 10000
 EXPORT_PLUGIN_VERSION = "v1.0.1"
 EXPORT_PLUGIN_URL = (
@@ -186,6 +191,23 @@ class ResolveAacTray:
         self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
         self.menu.addAction(self.export_plugin_action)
 
+        self.uninstall_export_plugin_action = QAction("Uninstall AAC export plugin")
+        self.uninstall_export_plugin_action.setToolTip("Remove the AAC export plugin from Resolve's IOPlugins folder.")
+        self.uninstall_export_plugin_action.triggered.connect(self.handle_uninstall_export_plugin_action)
+        self.menu.addAction(self.uninstall_export_plugin_action)
+
+        self.resolve_font_action = QAction("Resolve font fix: Apply")
+        self.resolve_font_action.setToolTip(
+            "Make Resolve and Fusion scan user-installed font folders such as /usr/local/share/fonts."
+        )
+        self.resolve_font_action.triggered.connect(self.handle_resolve_font_action)
+        self.menu.addAction(self.resolve_font_action)
+
+        self.uninstall_resolve_font_action = QAction("Uninstall Resolve font fix")
+        self.uninstall_resolve_font_action.setToolTip("Remove the Resolve font wrapper and desktop override.")
+        self.uninstall_resolve_font_action.triggered.connect(self.handle_uninstall_resolve_font_action)
+        self.menu.addAction(self.uninstall_resolve_font_action)
+
         self.choose_cache_action = QAction("Choose cache folder...")
         self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
         self.choose_cache_action.triggered.connect(self.choose_cache_folder)
@@ -240,8 +262,35 @@ class ResolveAacTray:
     def watcher_path(self):
         return SCRIPT_DIR / "resolve_aac_mediapool_watch.py"
 
+    def fusion_font_paths(self):
+        paths = [Path("/usr/share/fonts"), Path("/usr/local/share/fonts")]
+        local_fonts = Path.home() / ".local" / "share" / "fonts"
+        if local_fonts.exists():
+            paths.append(local_fonts)
+
+        user_fonts = Path.home() / ".fonts"
+        if user_fonts.exists():
+            paths.append(user_fonts)
+
+        local_system_fonts = Path("/usr/local/share/fonts")
+        if local_system_fonts.exists():
+            paths.extend(sorted(path for path in local_system_fonts.iterdir() if path.is_dir()))
+
+        return [str(path) for path in paths if path.exists()]
+
+    def fusion_font_path_string(self):
+        return ";".join(self.fusion_font_paths())
+
     def current_env(self):
         env = os.environ.copy()
+        if self.resolve_font_fix_installed():
+            font_paths = [path for path in env.get("FUSION_FONTS", "").split(";") if path]
+            for path in self.fusion_font_paths():
+                if path not in font_paths:
+                    font_paths.append(path)
+            env["FUSION_FONTS"] = ";".join(font_paths)
+            env["RESOLVE_FONT_FIX"] = "1"
+
         if self.config["use_cache"]:
             cache_dir = Path(self.config["cache_dir"]).expanduser()
             cache_dir.mkdir(parents=True, exist_ok=True)
@@ -340,6 +389,187 @@ class ResolveAacTray:
 
         self.notify("Resolve AAC Tools", "AAC export plugin installed. Restart Resolve to use it.")
 
+    def uninstall_export_plugin(self):
+        bundle_dir = EXPORT_PLUGIN_TARGET_DIR.parent.parent
+        if not bundle_dir.exists():
+            self.notify("Resolve AAC Tools", "AAC export plugin is not installed.")
+            return
+
+        try:
+            shutil.rmtree(bundle_dir)
+            self.notify("Resolve AAC Tools", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
+            return
+        except OSError:
+            pass
+
+        if not shutil.which("pkexec"):
+            raise RuntimeError("Uninstalling from /opt/resolve/IOPlugins requires pkexec or write access.")
+
+        subprocess.run(["pkexec", "rm", "-rf", str(bundle_dir)], check=True)
+        self.notify("Resolve AAC Tools", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
+
+    def resolve_font_wrapper_content(self):
+        return """#!/usr/bin/env bash
+set -euo pipefail
+
+FONT_DIRS="/usr/share/fonts;/usr/local/share/fonts"
+
+if [[ -d /usr/local/share/fonts ]]; then
+  while IFS= read -r font_dir; do
+    FONT_DIRS+=";$font_dir"
+  done < <(find /usr/local/share/fonts -mindepth 1 -maxdepth 1 -type d | sort)
+fi
+
+if [[ -d "$HOME/.local/share/fonts" ]]; then
+  FONT_DIRS+=";$HOME/.local/share/fonts"
+fi
+
+if [[ -d "$HOME/.fonts" ]]; then
+  FONT_DIRS+=";$HOME/.fonts"
+fi
+
+export FUSION_FONTS="${FUSION_FONTS:+$FUSION_FONTS;}$FONT_DIRS"
+
+exec /opt/resolve/bin/resolve "$@"
+"""
+
+    def resolve_desktop_entry(self):
+        return f"""[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DaVinci Resolve
+GenericName=DaVinci Resolve
+Comment=Revolutionary new tools for editing, visual effects, color correction and professional audio post production, all in a single application!
+Path=/opt/resolve/
+Exec={RESOLVE_FONT_WRAPPER_PATH} %u
+Terminal=false
+MimeType=application/x-resolveproj;
+Icon=/opt/resolve/graphics/DV_Resolve.png
+StartupNotify=true
+Name[en_US]=DaVinci Resolve
+"""
+
+    def resolve_font_fix_installed(self):
+        if not RESOLVE_FONT_WRAPPER_PATH.exists() or not RESOLVE_DESKTOP_OVERRIDE_PATH.exists():
+            return False
+
+        try:
+            desktop_text = RESOLVE_DESKTOP_OVERRIDE_PATH.read_text()
+        except OSError:
+            return False
+
+        if f"Exec={RESOLVE_FONT_WRAPPER_PATH}" not in desktop_text:
+            return False
+
+        if not FUSION_PREFS_PATH.exists():
+            return True
+
+        try:
+            prefs_text = FUSION_PREFS_PATH.read_text()
+        except OSError:
+            return False
+
+        return all(path in prefs_text for path in self.fusion_font_paths())
+
+    def write_resolve_font_wrapper(self):
+        RESOLVE_FONT_WRAPPER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RESOLVE_FONT_WRAPPER_PATH.write_text(self.resolve_font_wrapper_content())
+        RESOLVE_FONT_WRAPPER_PATH.chmod(0o755)
+
+    def write_resolve_desktop_override(self):
+        RESOLVE_DESKTOP_OVERRIDE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RESOLVE_DESKTOP_OVERRIDE_PATH.write_text(self.resolve_desktop_entry())
+
+    def update_fusion_font_prefs(self):
+        if not FUSION_PREFS_PATH.exists():
+            return
+
+        lines = FUSION_PREFS_PATH.read_text().splitlines()
+        replacement = f'\t\t\t\t["SystemFonts:"] = "$(FUSION_FONTS);{self.fusion_font_path_string()}",'
+        for index, line in enumerate(lines):
+            if '["SystemFonts:"]' in line:
+                lines[index] = replacement
+                FUSION_PREFS_PATH.write_text("\n".join(lines) + "\n")
+                return
+
+        raise RuntimeError(f"Could not find SystemFonts entry in {FUSION_PREFS_PATH}")
+
+    def restore_fusion_font_prefs(self):
+        if not FUSION_PREFS_PATH.exists():
+            return
+
+        lines = FUSION_PREFS_PATH.read_text().splitlines()
+        replacement = '\t\t\t\t["SystemFonts:"] = "$(FUSION_FONTS)",'
+        changed = False
+        for index, line in enumerate(lines):
+            if '["SystemFonts:"]' in line and any(path in line for path in self.fusion_font_paths()):
+                lines[index] = replacement
+                changed = True
+                break
+
+        if changed:
+            FUSION_PREFS_PATH.write_text("\n".join(lines) + "\n")
+
+    def rebuild_font_cache(self):
+        cache_tool = shutil.which("fc-cache-64") or shutil.which("fc-cache")
+        if cache_tool:
+            subprocess.run(
+                [cache_tool, "-f", "-v", "/usr/local/share/fonts"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+
+    def refresh_desktop_database(self):
+        apps_dir = RESOLVE_DESKTOP_OVERRIDE_PATH.parent
+        if shutil.which("update-desktop-database"):
+            subprocess.run(
+                ["update-desktop-database", str(apps_dir)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        if shutil.which("kbuildsycoca6"):
+            subprocess.run(
+                ["kbuildsycoca6"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+
+    def install_resolve_font_fix(self):
+        self.write_resolve_font_wrapper()
+        self.write_resolve_desktop_override()
+        self.update_fusion_font_prefs()
+        self.rebuild_font_cache()
+        self.refresh_desktop_database()
+
+    def uninstall_resolve_font_fix(self):
+        removed = False
+        try:
+            if RESOLVE_FONT_WRAPPER_PATH.exists():
+                RESOLVE_FONT_WRAPPER_PATH.unlink()
+                removed = True
+        except OSError as exc:
+            raise RuntimeError(f"Could not remove {RESOLVE_FONT_WRAPPER_PATH}: {exc}") from exc
+
+        if RESOLVE_DESKTOP_OVERRIDE_PATH.exists():
+            try:
+                desktop_text = RESOLVE_DESKTOP_OVERRIDE_PATH.read_text()
+                if f"Exec={RESOLVE_FONT_WRAPPER_PATH}" in desktop_text:
+                    RESOLVE_DESKTOP_OVERRIDE_PATH.unlink()
+                    removed = True
+            except OSError as exc:
+                raise RuntimeError(f"Could not update {RESOLVE_DESKTOP_OVERRIDE_PATH}: {exc}") from exc
+
+        self.restore_fusion_font_prefs()
+        self.refresh_desktop_database()
+
+        if removed:
+            self.notify("Resolve AAC Tools", "Resolve font fix uninstalled. Restart Resolve to finish unloading it.")
+        else:
+            self.notify("Resolve AAC Tools", "Resolve font fix is not installed.")
+
     def start_resolve(self):
         if self.process and self.process.poll() is None:
             self.notify("Resolve AAC Tools", "Resolve launcher is already running.")
@@ -428,6 +658,37 @@ class ResolveAacTray:
 
         self.update_export_plugin_action()
 
+    def handle_uninstall_export_plugin_action(self):
+        try:
+            self.uninstall_export_plugin()
+        except Exception as exc:
+            self.error("Could not uninstall AAC export plugin", str(exc))
+
+        self.update_export_plugin_action()
+
+    def handle_resolve_font_action(self):
+        if self.resolve_font_fix_installed():
+            self.update_resolve_font_action()
+            self.notify("Resolve AAC Tools", "Resolve font fix is already installed.")
+            return
+
+        try:
+            self.install_resolve_font_fix()
+        except Exception as exc:
+            self.error("Could not apply Resolve font fix", str(exc))
+            return
+
+        self.notify("Resolve AAC Tools", "Resolve font fix applied. Restart Resolve to use it.")
+        self.update_resolve_font_action()
+
+    def handle_uninstall_resolve_font_action(self):
+        try:
+            self.uninstall_resolve_font_fix()
+        except Exception as exc:
+            self.error("Could not uninstall Resolve font fix", str(exc))
+
+        self.update_resolve_font_action()
+
     def set_autostart(self, enabled):
         try:
             if enabled:
@@ -484,6 +745,7 @@ class ResolveAacTray:
             ])
         )
         self.update_export_plugin_action()
+        self.update_resolve_font_action()
 
     def update_export_plugin_action(self):
         installed = self.export_plugin_installed()
@@ -492,6 +754,16 @@ class ResolveAacTray:
             "AAC export plugin: ✓ Installed" if installed else "AAC export plugin: Install"
         )
         self.export_plugin_action.blockSignals(False)
+        self.uninstall_export_plugin_action.setEnabled(installed)
+
+    def update_resolve_font_action(self):
+        installed = self.resolve_font_fix_installed()
+        self.resolve_font_action.blockSignals(True)
+        self.resolve_font_action.setText(
+            "Resolve font fix: Installed" if installed else "Resolve font fix: Apply"
+        )
+        self.resolve_font_action.blockSignals(False)
+        self.uninstall_resolve_font_action.setEnabled(installed)
 
     def consume_start_request(self):
         if not START_REQUEST_PATH.exists():
