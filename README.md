@@ -53,6 +53,8 @@ Tray basics:
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Enable `Start tray at login` if you want the tray icon available after login.
 - Use `AAC export plugin: Install` once if you also want AAC as an export option.
+- Use `Resolve font fix: Apply` once if Resolve/Fusion does not see user-installed fonts.
+- Use the matching `Uninstall` actions if you want to remove either optional install.
 
 The tray can store generated MOV/PCM files either in a cache folder or beside the
 source media in `<source-folder>/aac_remux/`.
@@ -122,6 +124,12 @@ Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
 `IOPlugins` folder. Resolve loads it on startup, so restart Resolve after
 installing it.
 
+The optional Resolve font fix is also a one-time install, not a background
+watcher. It installs a local Resolve launcher wrapper and desktop override so
+Resolve starts with additional Fusion font paths such as `/usr/local/share/fonts`,
+`~/.local/share/fonts`, and `~/.fonts`. Restart Resolve after applying or
+uninstalling it.
+
 ## Optional Tools
 
 These are installed too, but most users only need the tray app.
@@ -144,6 +152,7 @@ resolve-aac-timeline-watch
 resolve-aac-timeline-watch-stop
 resolve-aac-import
 resolve-aac-watch
+resolve-with-fonts
 ```
 
 Start or stop only the MediaPool watcher:

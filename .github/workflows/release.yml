@@ -20,6 +20,7 @@ jobs:
           cp README.md LICENSE scripts/install_user_tools.sh resolve-aac-tools/
           cp scripts/resolve_aac_*.py resolve-aac-tools/
           cp scripts/resolve-with-aac-mediapool-watch.sh resolve-aac-tools/
+          cp scripts/resolve-with-fonts.sh resolve-aac-tools/
           cp experiments/ffmpeg-patch/build_resolve_ffmpeg_aac.sh resolve-aac-tools/
           cp experiments/ffmpeg-patch/install_resolve_ffmpeg_aac.sh resolve-aac-tools/
           cp experiments/ffmpeg-patch/restore_resolve_ffmpeg_backup.sh resolve-aac-tools/
