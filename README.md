@@ -1,5 +1,8 @@
 # DaVinci Resolve AAC Tools for Linux
 
+Install guide video:
+https://youtu.be/cBxr6CLhnVI
+
 Inspired by: https://github.com/jchai01/davinci-resolve-aac-workaround-macro
 
 Optional AAC export plugin by Toxblh:
