@@ -7,6 +7,7 @@ Inspired by: https://github.com/jchai01/davinci-resolve-aac-workaround-macro
 
 Optional AAC export plugin by Toxblh:
 https://github.com/Toxblh/davinci-linux-aac-codec
+(Can be installed with one click after installing the tray app)
 
 A small Linux tray app for DaVinci Resolve projects that contain AAC audio.
 
