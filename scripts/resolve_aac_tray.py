@@ -42,6 +42,8 @@ INSTALLED_TRAY_COMMAND = Path.home() / ".local" / "bin" / "resolve-aac-tray"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "resolve-aac-remux"
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
+EXPORT_WATCH_LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
+EXPORT_WATCH_STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
 RESOLVE_FONT_WRAPPER_PATH = Path.home() / ".local" / "bin" / "resolve-with-fonts"
 RESOLVE_DESKTOP_OVERRIDE_PATH = (
     Path.home() / ".local" / "share" / "applications" / "com.blackmagicdesign.resolve.desktop"
@@ -70,6 +72,7 @@ def load_config():
         "use_cache": False,
         "cache_dir": str(DEFAULT_CACHE_DIR),
         "watch_manual_resolve": True,
+        "remux_exports": False,
     }
     try:
         data = json.loads(CONFIG_PATH.read_text())
@@ -77,6 +80,8 @@ def load_config():
         return defaults
 
     defaults.update({key: data[key] for key in defaults if key in data})
+    if "remux_exports" not in data and "web_export_watch" in data:
+        defaults["remux_exports"] = bool(data["web_export_watch"])
     return defaults
 
 
@@ -136,6 +141,8 @@ class ResolveAacTray(QObject):
         self.config = load_config()
         self.process = None
         self.watcher_process = None
+        self.export_watcher_process = None
+        self.export_watcher_log_file = None
         self.manual_resolve_was_running = False
 
         icon = QIcon.fromTheme("media-playback-start")
@@ -187,6 +194,15 @@ class ResolveAacTray(QObject):
         self.watch_manual_action.toggled.connect(self.set_watch_manual_resolve)
         self.menu.addAction(self.watch_manual_action)
 
+        self.remux_exports_action = QAction("Remux exports to webfriendly AAC")
+        self.remux_exports_action.setCheckable(True)
+        self.remux_exports_action.setChecked(bool(self.config["remux_exports"]))
+        self.remux_exports_action.setToolTip(
+            "Detect Resolve render outputs automatically and replace broken AAC metadata in-place."
+        )
+        self.remux_exports_action.toggled.connect(self.set_remux_exports)
+        self.menu.addAction(self.remux_exports_action)
+
         self.export_plugin_action = QAction("Install AAC export plugin")
         self.export_plugin_action.setToolTip("Install once; status changes to installed when the export plugin is present.")
         self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
@@ -233,6 +249,9 @@ class ResolveAacTray(QObject):
         self.manual_resolve_timer.timeout.connect(self.check_manual_resolve)
         self.manual_resolve_timer.start(MANUAL_RESOLVE_CHECK_MS)
 
+        if self.config["remux_exports"]:
+            QTimer.singleShot(500, lambda: self.start_export_watcher(notify=False))
+
         self.update_status()
 
         if start_resolve:
@@ -252,6 +271,9 @@ class ResolveAacTray(QObject):
 
     def watcher_path(self):
         return SCRIPT_DIR / "resolve_aac_mediapool_watch.py"
+
+    def export_watcher_path(self):
+        return SCRIPT_DIR / "resolve_aac_export_watch.py"
 
     def fusion_font_paths(self):
         paths = [Path("/usr/share/fonts"), Path("/usr/local/share/fonts")]
@@ -304,6 +326,16 @@ class ResolveAacTray(QObject):
             args.extend(["--cache-dir", str(cache_dir)])
         return args
 
+    def export_watcher_args(self):
+        return [
+            sys.executable,
+            str(self.export_watcher_path()),
+            "--detect-resolve-outputs",
+            "--replace",
+            "--no-backup",
+            "--quiet",
+        ]
+
     def resolve_is_running(self):
         try:
             result = subprocess.run(
@@ -323,6 +355,21 @@ class ResolveAacTray(QObject):
         try:
             result = subprocess.run(
                 ["pgrep", "-u", str(os.getuid()), "-f", "resolve_aac_mediapool_watch.py"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    def export_watcher_is_running(self):
+        if self.export_watcher_process and self.export_watcher_process.poll() is None:
+            return True
+
+        try:
+            result = subprocess.run(
+                ["pgrep", "-u", str(os.getuid()), "-f", "resolve_aac_export_watch.py"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
@@ -626,6 +673,59 @@ Name[en_US]=DaVinci Resolve
         self.notify("Resolve AAC Tools", "Watcher stop requested.")
         self.update_status()
 
+    def start_export_watcher(self, notify=True):
+        watcher = self.export_watcher_path()
+        if not watcher.exists():
+            self.error("Missing export watcher", f"Could not find:\n{watcher}")
+            return
+
+        if self.export_watcher_is_running():
+            return
+
+        try:
+            EXPORT_WATCH_STOP_PATH.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
+
+        try:
+            self.export_watcher_log_file = EXPORT_WATCH_LOG_PATH.open("a")
+            self.export_watcher_process = subprocess.Popen(
+                self.export_watcher_args(),
+                stdout=self.export_watcher_log_file,
+                stderr=subprocess.STDOUT,
+                env=self.current_env(),
+            )
+        except Exception as exc:
+            if self.export_watcher_log_file:
+                self.export_watcher_log_file.close()
+                self.export_watcher_log_file = None
+            self.error("Could not start export remux watcher", str(exc))
+            return
+
+        if notify:
+            self.notify("Resolve AAC Tools", "Export remux watcher started.")
+        self.update_status()
+
+    def stop_export_watcher(self, notify=True):
+        try:
+            EXPORT_WATCH_STOP_PATH.write_text("stop\n")
+        except OSError:
+            pass
+
+        if self.export_watcher_process and self.export_watcher_process.poll() is None:
+            self.export_watcher_process.terminate()
+
+        self.export_watcher_process = None
+        if self.export_watcher_log_file:
+            self.export_watcher_log_file.close()
+            self.export_watcher_log_file = None
+
+        if notify:
+            self.notify("Resolve AAC Tools", "Export remux watcher stop requested.")
+        self.update_status()
+
     def set_use_cache(self, enabled):
         watcher_was_running = self.watcher_is_running()
         self.config["use_cache"] = bool(enabled)
@@ -639,6 +739,15 @@ Name[en_US]=DaVinci Resolve
     def set_watch_manual_resolve(self, enabled):
         self.config["watch_manual_resolve"] = bool(enabled)
         save_config(self.config)
+        self.update_status()
+
+    def set_remux_exports(self, enabled):
+        self.config["remux_exports"] = bool(enabled)
+        save_config(self.config)
+        if enabled:
+            self.start_export_watcher()
+        else:
+            self.stop_export_watcher()
         self.update_status()
 
     def confirm_uninstall(self, title, message):
@@ -742,21 +851,29 @@ Name[en_US]=DaVinci Resolve
     def update_status(self):
         launcher_running = self.process is not None and self.process.poll() is None
         watcher_running = self.watcher_is_running()
+        export_watcher_running = self.export_watcher_is_running()
         mode = "cache folder" if self.config["use_cache"] else "source folders"
         if launcher_running:
             status = "Resolve launcher running"
         elif watcher_running:
             status = "Watcher running"
+        elif export_watcher_running:
+            status = "Export remux watcher running"
         else:
             status = "Stopped"
-        self.status_action.setText(f"{status} - output: {mode}")
+        export_status = "export remux on" if self.config["remux_exports"] else "export remux off"
+        self.status_action.setText(f"{status} - output: {mode} - {export_status}")
         self.stop_action.setEnabled(True)
         self.open_cache_action.setEnabled(bool(self.config["use_cache"]))
+        self.remux_exports_action.blockSignals(True)
+        self.remux_exports_action.setChecked(bool(self.config["remux_exports"]))
+        self.remux_exports_action.blockSignals(False)
         self.tray.setToolTip(
             "\n".join([
                 "Resolve AAC Tools",
                 f"Status: {status}",
                 f"Output: {mode}",
+                f"Export remux: {'on' if self.config['remux_exports'] else 'off'}",
                 "Left-click: start Resolve + watcher",
                 "Right-click: settings",
             ])
@@ -792,6 +909,8 @@ Name[en_US]=DaVinci Resolve
         self.start_resolve()
 
     def tick(self):
+        if self.config["remux_exports"] and not self.export_watcher_is_running():
+            self.start_export_watcher(notify=False)
         self.update_status()
         self.consume_start_request()
 
@@ -817,6 +936,8 @@ Name[en_US]=DaVinci Resolve
             self.start_resolve()
 
     def quit(self):
+        if self.export_watcher_log_file:
+            self.export_watcher_log_file.close()
         save_config(self.config)
         self.tray.hide()
         self.app.quit()

@@ -123,55 +123,61 @@ mkdir -p "$BIN_DIR" "$APPS_DIR" "$RESOLVE_AAC_SCRIPTS_DIR" "$HOME/Resolve AAC In
 
 cat > "$BIN_DIR/resolve-aac-import" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_import.py" --overwrite --import "\$@"
+exec python3 "$APP_DIR/resolve_aac_import.py" --overwrite --import "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-import"
 
 cat > "$BIN_DIR/resolve-aac-watch" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_watch.py" "\$@"
+exec python3 "$APP_DIR/resolve_aac_watch.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-watch"
 
 cat > "$BIN_DIR/resolve-aac-current-clip" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_timeline.py" --overwrite "\$@"
+exec python3 "$APP_DIR/resolve_aac_timeline.py" --overwrite "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-current-clip"
 
 cat > "$BIN_DIR/resolve-aac-timeline-watch" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_timeline_watch.py" "\$@"
+exec python3 "$APP_DIR/resolve_aac_timeline_watch.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-timeline-watch"
 
 cat > "$BIN_DIR/resolve-aac-timeline-watch-stop" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_timeline_watch_stop.py" "\$@"
+exec python3 "$APP_DIR/resolve_aac_timeline_watch_stop.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-timeline-watch-stop"
 
 cat > "$BIN_DIR/resolve-aac-mediapool-watch" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_mediapool_watch.py" "\$@"
+exec python3 "$APP_DIR/resolve_aac_mediapool_watch.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-mediapool-watch"
 
 cat > "$BIN_DIR/resolve-aac-mediapool-watch-stop" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve_aac_mediapool_watch_stop.py" "\$@"
+exec python3 "$APP_DIR/resolve_aac_mediapool_watch_stop.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-mediapool-watch-stop"
 
+cat > "$BIN_DIR/resolve-aac-export-watch" <<EOF
+#!/usr/bin/env bash
+exec python3 "$APP_DIR/resolve_aac_export_watch.py" "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-aac-export-watch"
+
 cat > "$BIN_DIR/resolve-with-aac-mediapool-watch" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve-with-aac-mediapool-watch.sh" "\$@"
+exec bash "$APP_DIR/resolve-with-aac-mediapool-watch.sh" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-with-aac-mediapool-watch"
 
 cat > "$BIN_DIR/resolve-with-fonts" <<EOF
 #!/usr/bin/env bash
-exec "$APP_DIR/resolve-with-fonts.sh" "\$@"
+exec bash "$APP_DIR/resolve-with-fonts.sh" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-with-fonts"
 

@@ -44,6 +44,7 @@ rm -f \
   "$BIN_DIR/resolve-aac-timeline-watch-stop" \
   "$BIN_DIR/resolve-aac-mediapool-watch" \
   "$BIN_DIR/resolve-aac-mediapool-watch-stop" \
+  "$BIN_DIR/resolve-aac-export-watch" \
   "$BIN_DIR/resolve-with-aac-mediapool-watch" \
   "$BIN_DIR/resolve-with-fonts" \
   "$BIN_DIR/resolve-aac-tray" \

@@ -60,6 +60,7 @@ Tray basics:
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
 - Use `AAC export plugin: Install` once if you also want AAC as an export option.
+- Experimental: enable `Remux exports to webfriendly AAC` to watch Resolve render outputs and repair AAC metadata in-place after export.
 - Use `Resolve font fix: Install` once if Resolve/Fusion does not see user-installed fonts.
 - Click either optional install entry again after it shows `Installed` to uninstall it.
 
@@ -143,6 +144,13 @@ Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
 `IOPlugins` folder. Resolve loads it on startup, so restart Resolve after
 installing it.
 
+The experimental export remux watcher is a separate tray toggle for AAC exports.
+When enabled, it detects files that Resolve is actively rendering, waits until
+Resolve closes the output file, and then rewrites the audio stream as
+browser-friendly AAC-LC while copying the video stream. It replaces the exported
+file in-place and does not create a watch folder, sidecar `.web.mp4`, or backup
+file. The watcher only sees renders that happen while it is running.
+
 The optional Resolve font fix is also a one-time install, not a background
 watcher. It installs a local Resolve launcher wrapper and desktop override so
 Resolve starts with additional Fusion font paths such as `/usr/local/share/fonts`,
@@ -171,6 +179,7 @@ resolve-aac-timeline-watch
 resolve-aac-timeline-watch-stop
 resolve-aac-import
 resolve-aac-watch
+resolve-aac-export-watch
 resolve-with-fonts
 ```
 
@@ -193,6 +202,12 @@ Batch convert files or folders:
 
 ```bash
 resolve-aac-import /path/to/media-or-folder
+```
+
+Run the experimental export remux watcher directly:
+
+```bash
+resolve-aac-export-watch --detect-resolve-outputs --replace --no-backup
 ```
 
 ## Output

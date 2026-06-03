@@ -1,0 +1,412 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+
+MEDIA_EXTS = {".mp4", ".m4v", ".mov"}
+LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
+STATE_PATH = Path.home() / ".cache" / "resolve-aac-export-watch" / "state.json"
+STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
+
+
+def log(message):
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}"
+    with LOG_PATH.open("a") as log_file:
+        log_file.write(line + "\n")
+    if sys.stdout.isatty():
+        print(line, flush=True)
+
+
+def load_state(path):
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def save_state(path, state):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
+def fingerprint(path):
+    stat = path.stat()
+    return f"{stat.st_size}:{int(stat.st_mtime)}"
+
+
+def is_stable(path, stable_seconds):
+    try:
+        first = path.stat()
+        time.sleep(stable_seconds)
+        second = path.stat()
+    except FileNotFoundError:
+        return False
+    return first.st_size == second.st_size and first.st_mtime == second.st_mtime
+
+
+def iter_candidates(paths):
+    for raw_path in paths:
+        path = raw_path.expanduser()
+        if path.is_file() and path.suffix.lower() in MEDIA_EXTS:
+            yield path
+            continue
+        if path.is_dir():
+            yield from sorted(
+                candidate for candidate in path.rglob("*")
+                if candidate.is_file() and candidate.suffix.lower() in MEDIA_EXTS
+            )
+
+
+def resolve_pids():
+    try:
+        result = subprocess.run(
+            ["pgrep", "-u", str(os.getuid()), "-f", "/opt/resolve/bin/resolve"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return []
+
+    if result.returncode != 0:
+        return []
+    return [pid.strip() for pid in result.stdout.splitlines() if pid.strip().isdigit()]
+
+
+def iter_resolve_output_paths():
+    for pid in resolve_pids():
+        fd_dir = Path("/proc") / pid / "fd"
+        try:
+            fds = list(fd_dir.iterdir())
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                target = Path(os.readlink(fd))
+            except OSError:
+                continue
+            if " (deleted)" in str(target):
+                continue
+            if target.suffix.lower() not in MEDIA_EXTS:
+                continue
+            try:
+                if target.exists() and target.is_file():
+                    yield target.resolve()
+            except OSError:
+                continue
+
+
+def ffprobe_audio(path):
+    command = [
+        "ffprobe",
+        "-hide_banner",
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "stream=codec_name,codec_tag_string,profile,mime_codec_string,extradata_size",
+        "-of",
+        "json",
+        str(path),
+    ]
+    result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    data = json.loads(result.stdout or "{}")
+    streams = data.get("streams") or []
+    return streams[0] if streams else {}
+
+
+def audio_metadata_is_broken(audio):
+    if audio.get("codec_name") != "aac" or audio.get("codec_tag_string") != "mp4a":
+        return False
+
+    profile = str(audio.get("profile", ""))
+    mime = str(audio.get("mime_codec_string", ""))
+    has_extradata = "extradata_size" in audio
+    return profile == "-1" or mime == "mp4a.40.0" or not has_extradata
+
+
+def has_broken_resolve_aac(path):
+    try:
+        audio = ffprobe_audio(path)
+    except Exception as exc:
+        log(f"skip probe failed: {path}: {exc}")
+        return False
+
+    return audio_metadata_is_broken(audio)
+
+
+def verify_fixed(path):
+    audio = ffprobe_audio(path)
+    return (
+        audio.get("codec_name") == "aac"
+        and audio.get("codec_tag_string") == "mp4a"
+        and str(audio.get("profile")) == "LC"
+        and str(audio.get("mime_codec_string")) == "mp4a.40.2"
+        and int(audio.get("extradata_size", 0)) > 0
+    )
+
+
+def unique_path(path):
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for index in range(1, 1000):
+        candidate = path.with_name(f"{stem}.{index}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"Could not find free path for {path}")
+
+
+def fixed_output_path(input_path, suffix):
+    if suffix.endswith(input_path.suffix):
+        return input_path.with_name(input_path.name[: -len(input_path.suffix)] + suffix)
+    return input_path.with_name(input_path.name + suffix)
+
+
+def convert(path, args):
+    temp_path = path.with_name(f".{path.name}.resolve-aac-fix-{uuid.uuid4().hex}.tmp.mp4")
+    output_path = path if args.replace else unique_path(fixed_output_path(path, args.suffix))
+
+    command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-y",
+        "-i",
+        str(path),
+        "-map",
+        "0:v?",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        args.audio_bitrate,
+        "-map_metadata",
+        "0",
+        "-movflags",
+        "+faststart",
+        "-write_tmcd",
+        "0",
+        str(temp_path),
+    ]
+    log(f"fixing: {path}")
+    subprocess.run(
+        command,
+        check=True,
+        stdout=subprocess.DEVNULL if args.quiet else None,
+        stderr=subprocess.DEVNULL if args.quiet else None,
+    )
+
+    if not verify_fixed(temp_path):
+        temp_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Fixed file failed verification: {temp_path}")
+
+    backup_path = None
+    if args.replace:
+        if args.backup:
+            backup_path = unique_path(path.with_name(path.name + args.backup_suffix))
+            path.replace(backup_path)
+        try:
+            temp_path.replace(path)
+        except Exception:
+            if backup_path and backup_path.exists() and not path.exists():
+                backup_path.replace(path)
+            raise
+        log(f"replaced: {path}" + (f" backup={backup_path}" if backup_path else ""))
+        return path
+
+    temp_path.replace(output_path)
+    log(f"created: {output_path}")
+    return output_path
+
+
+def scan_once(args, state):
+    changed = 0
+    for path in iter_candidates(args.paths):
+        path = path.resolve()
+        if path.name.startswith("."):
+            continue
+        if path.name.endswith(args.backup_suffix) or path.name.endswith(args.suffix):
+            continue
+        try:
+            stat = path.stat()
+            current = fingerprint(path)
+        except FileNotFoundError:
+            continue
+        if args.new_files_only and stat.st_mtime < args.started_at:
+            continue
+        if state.get(str(path)) == current and not args.retry:
+            continue
+        if not is_stable(path, args.stable_seconds):
+            log(f"waiting: still writing {path}")
+            continue
+        if not has_broken_resolve_aac(path):
+            state[str(path)] = current
+            continue
+        convert(path, args)
+        state[str(path)] = fingerprint(path)
+        changed += 1
+    return changed
+
+
+def process_path(path, args, state, retry_probe_failures=False):
+    path = path.resolve()
+    if path.name.startswith("."):
+        return False
+    if path.name.endswith(args.backup_suffix) or path.name.endswith(args.suffix):
+        return False
+
+    try:
+        current = fingerprint(path)
+    except FileNotFoundError:
+        return False
+
+    if state.get(str(path)) == current and not args.retry:
+        return False
+    if not is_stable(path, args.stable_seconds):
+        log(f"waiting: still writing {path}")
+        return False
+
+    if retry_probe_failures:
+        try:
+            broken = audio_metadata_is_broken(ffprobe_audio(path))
+        except Exception as exc:
+            log(f"waiting: probe failed for recent Resolve output {path}: {exc}")
+            return False
+    else:
+        broken = has_broken_resolve_aac(path)
+
+    if not broken:
+        state[str(path)] = current
+        return False
+
+    convert(path, args)
+    state[str(path)] = fingerprint(path)
+    return True
+
+
+def scan_detected_resolve_outputs_once(args, state, runtime):
+    active = runtime.setdefault("active", {})
+    closed = runtime.setdefault("closed", {})
+    open_paths = {str(path) for path in iter_resolve_output_paths()}
+
+    for raw_path in sorted(open_paths):
+        if raw_path not in active:
+            log(f"detected Resolve output: {raw_path}")
+        active[raw_path] = time.time()
+        closed.pop(raw_path, None)
+
+    for raw_path in list(active):
+        if raw_path in open_paths:
+            continue
+        closed.setdefault(raw_path, time.time())
+
+    changed = 0
+    now = time.time()
+    for raw_path, closed_at in list(closed.items()):
+        if raw_path in open_paths:
+            continue
+        if now - closed_at < args.closed_grace_seconds:
+            continue
+
+        path = Path(raw_path)
+        if not path.exists():
+            active.pop(raw_path, None)
+            closed.pop(raw_path, None)
+            continue
+
+        try:
+            if process_path(path, args, state, retry_probe_failures=True):
+                changed += 1
+                active.pop(raw_path, None)
+                closed.pop(raw_path, None)
+            elif str(path) in state:
+                active.pop(raw_path, None)
+                closed.pop(raw_path, None)
+        except Exception as exc:
+            log(f"error processing detected Resolve output {path}: {exc}")
+
+    return changed
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Watch rendered Resolve MP4/MOV files and repair AAC metadata automatically."
+    )
+    parser.add_argument("paths", nargs="*", type=Path, default=[Path.home() / "Videos"])
+    parser.add_argument("--interval", type=float, default=3.0)
+    parser.add_argument("--stable-seconds", type=float, default=2.0)
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--retry", action="store_true")
+    parser.add_argument("--replace", action="store_true", help="Replace the original file after verification.")
+    parser.add_argument("--no-backup", dest="backup", action="store_false", help="Do not keep a backup when replacing.")
+    parser.add_argument("--backup-suffix", default=".bad-aac-backup.mp4")
+    parser.add_argument("--suffix", default=".fixed.mp4")
+    parser.add_argument("--audio-bitrate", default="192k")
+    parser.add_argument("--state", type=Path, default=STATE_PATH)
+    parser.add_argument("--new-files-only", action="store_true", help="Only process files modified after this watcher starts.")
+    parser.add_argument("--detect-resolve-outputs", action="store_true", help="Detect render output files from Resolve's open file handles instead of scanning folders.")
+    parser.add_argument("--closed-grace-seconds", type=float, default=3.0, help="Wait this long after Resolve closes an output file before repairing it.")
+    parser.add_argument("--quiet", action="store_true")
+    parser.set_defaults(backup=True)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    args.started_at = time.time()
+    try:
+        STOP_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        raise RuntimeError("ffmpeg and ffprobe are required")
+
+    state = load_state(args.state)
+    log("=== Resolve AAC Export Watch started ===")
+    if args.detect_resolve_outputs:
+        log("detecting Resolve output files from /proc")
+    else:
+        log("paths: " + ", ".join(str(path.expanduser()) for path in args.paths))
+    log(f"mode: {'replace' if args.replace else 'sidecar'}")
+
+    runtime = {}
+    while True:
+        try:
+            if args.detect_resolve_outputs:
+                changed = scan_detected_resolve_outputs_once(args, state, runtime)
+            else:
+                changed = scan_once(args, state)
+            if changed:
+                save_state(args.state, state)
+        except KeyboardInterrupt:
+            break
+        except Exception as exc:
+            log(f"error: {exc}")
+
+        if args.once or STOP_PATH.exists():
+            break
+        time.sleep(args.interval)
+
+    save_state(args.state, state)
+    log("=== Resolve AAC Export Watch stopped ===")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
