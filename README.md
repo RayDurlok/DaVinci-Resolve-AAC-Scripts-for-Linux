@@ -5,14 +5,15 @@ https://youtu.be/cBxr6CLhnVI
 
 Inspired by: https://github.com/jchai01/davinci-resolve-aac-workaround-macro
 
-Optional AAC export plugin by Toxblh:
-https://github.com/Toxblh/davinci-linux-aac-codec
-
 A small Linux tray app for DaVinci Resolve projects that contain AAC audio.
 
 It watches Resolve, converts AAC audio to Resolve-friendly PCM, and replaces
 imported clips automatically. Video streams are copied, not re-encoded. Original
 files stay untouched.
+
+Optional AAC export plugin by Toxblh:
+https://github.com/Toxblh/davinci-linux-aac-codec
+(Can be installed with one click after installing the tray app)
 
 ## Requirements
 
