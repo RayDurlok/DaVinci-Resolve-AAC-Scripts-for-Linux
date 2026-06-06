@@ -60,7 +60,7 @@ Tray basics:
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
 - Use `AAC export plugin: Install` once if you also want AAC as an export option.
-- Experimental: enable `Remux exports to webfriendly AAC` to watch Resolve render outputs and repair AAC metadata in-place after export.
+- Experimental and off by default: enable `Remux exports to webfriendly AAC` to watch Resolve render outputs and repair AAC metadata in-place after export.
 - Use `Resolve font fix: Install` once if Resolve/Fusion does not see user-installed fonts.
 - Click either optional install entry again after it shows `Installed` to uninstall it.
 
@@ -144,12 +144,13 @@ Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
 `IOPlugins` folder. Resolve loads it on startup, so restart Resolve after
 installing it.
 
-The experimental export remux watcher is a separate tray toggle for AAC exports.
-When enabled, it detects files that Resolve is actively rendering, waits until
-Resolve closes the output file, and then rewrites the audio stream as
-browser-friendly AAC-LC while copying the video stream. It replaces the exported
-file in-place and does not create a watch folder, sidecar `.web.mp4`, or backup
-file. The watcher only sees renders that happen while it is running.
+The experimental export remux watcher is a separate tray toggle for AAC exports
+and is off by default. When enabled, it detects files that Resolve is actively
+rendering, waits until Resolve closes the output file, and then rewrites the
+audio stream as browser-friendly AAC-LC while copying the video stream. It
+replaces the exported file in-place and does not create a watch folder, sidecar
+`.web.mp4`, or backup file. The watcher only sees renders that happen while it
+is running.
 
 The optional Resolve font fix is also a one-time install, not a background
 watcher. It installs a local Resolve launcher wrapper and desktop override so

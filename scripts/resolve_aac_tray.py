@@ -157,17 +157,17 @@ class ResolveAacTray(QObject):
 
         self.status_action = QAction("Stopped")
         self.status_action.setEnabled(False)
-        self.status_action.setToolTip("Current launcher state and selected output mode.")
+        self.status_action.setToolTip("Current watcher state, import output mode, and export remux state.")
         self.menu.addAction(self.status_action)
         self.menu.addSeparator()
 
         self.start_action = QAction("Start Resolve + MediaPool Watcher")
-        self.start_action.setToolTip("Launch DaVinci Resolve and start automatic AAC remux replacement.")
+        self.start_action.setToolTip("Launch DaVinci Resolve and start the MediaPool watcher for imported AAC clips.")
         self.start_action.triggered.connect(self.start_resolve)
         self.menu.addAction(self.start_action)
 
         self.stop_action = QAction("Stop Watcher")
-        self.stop_action.setToolTip("Stop the MediaPool watcher while keeping the tray available.")
+        self.stop_action.setToolTip("Stop the MediaPool watcher. The export remux watcher is controlled by its toggle.")
         self.stop_action.triggered.connect(self.stop_watcher)
         self.menu.addAction(self.stop_action)
 
@@ -176,7 +176,7 @@ class ResolveAacTray(QObject):
         self.cache_action = QAction("Use cache folder")
         self.cache_action.setCheckable(True)
         self.cache_action.setChecked(bool(self.config["use_cache"]))
-        self.cache_action.setToolTip("Store remuxed MOV/PCM files in the selected cache folder.")
+        self.cache_action.setToolTip("Store imported AAC remux files in one cache folder instead of beside each source clip.")
         self.cache_action.toggled.connect(self.set_use_cache)
         self.menu.addAction(self.cache_action)
 
@@ -198,7 +198,7 @@ class ResolveAacTray(QObject):
         self.remux_exports_action.setCheckable(True)
         self.remux_exports_action.setChecked(bool(self.config["remux_exports"]))
         self.remux_exports_action.setToolTip(
-            "Detect Resolve render outputs automatically and replace broken AAC metadata in-place."
+            "Off by default. While enabled, detect Resolve render outputs and repair AAC audio in-place after export."
         )
         self.remux_exports_action.toggled.connect(self.set_remux_exports)
         self.menu.addAction(self.remux_exports_action)
@@ -887,6 +887,11 @@ Name[en_US]=DaVinci Resolve
         self.export_plugin_action.setText(
             "AAC export plugin: ✓ Installed" if installed else "AAC export plugin: Install"
         )
+        self.export_plugin_action.setToolTip(
+            "AAC export plugin is installed. Click to uninstall it from Resolve's IOPlugins folder."
+            if installed
+            else "Download and install Toxblh's AAC export plugin into Resolve's IOPlugins folder."
+        )
         self.export_plugin_action.blockSignals(False)
 
     def update_resolve_font_action(self):
@@ -894,6 +899,11 @@ Name[en_US]=DaVinci Resolve
         self.resolve_font_action.blockSignals(True)
         self.resolve_font_action.setText(
             "Resolve font fix: ✓ Installed" if installed else "Resolve font fix: Install"
+        )
+        self.resolve_font_action.setToolTip(
+            "Resolve font fix is installed. Click to remove the wrapper and desktop override."
+            if installed
+            else "Install a Resolve launcher wrapper so Resolve and Fusion scan user-installed font folders."
         )
         self.resolve_font_action.blockSignals(False)
 
