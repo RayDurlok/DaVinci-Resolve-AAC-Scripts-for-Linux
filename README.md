@@ -17,6 +17,7 @@ https://github.com/Toxblh/davinci-linux-aac-codec
 
 ## Support
 You can support my work here:
+
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/donate/?hosted_button_id=V4HH8D9L36UPG)
 
 ## Requirements
