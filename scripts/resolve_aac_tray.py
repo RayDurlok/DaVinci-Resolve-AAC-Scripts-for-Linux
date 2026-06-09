@@ -878,11 +878,11 @@ Name[en_US]=DaVinci Resolve
         self.update_status()
 
     def intercept_watcher_args(self):
+        # No --quiet: the watcher logs events to INTERCEPT_WATCH_LOG_PATH for diagnostics.
         return [
             sys.executable,
             str(self.intercept_watcher_path()),
             "--require-mediapool-watcher",
-            "--quiet",
         ]
 
     def intercept_watcher_is_running(self):
