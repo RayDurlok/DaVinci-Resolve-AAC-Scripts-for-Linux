@@ -19,4 +19,14 @@ fi
 
 export FUSION_FONTS="${FUSION_FONTS:+$FUSION_FONTS;}$FONT_DIRS"
 
+# Native KDE-Dateidialoge (Speichern/Export/Import) statt Resolves altem Qt-Widget-Dialog.
+# Resolve bringt kein platformthemes-Plugin mit -> wir stellen das System-Plugin
+# (libqxdgdesktopportal.so, leitet QFileDialog an xdg-desktop-portal-kde) bereit.
+# Nur dieses eine Plugin liegt im Pfad, daher keine Kollision mit Resolves Qt-Plugins.
+RESOLVE_QT_PLUGINS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/qt-plugins"
+if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
+  export QT_QPA_PLATFORMTHEME=xdgdesktopportal
+  export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+fi
+
 exec /opt/resolve/bin/resolve "$@"

@@ -19,6 +19,7 @@ jobs:
           mkdir -p resolve-aac-tools
           cp README.md LICENSE scripts/install_user_tools.sh scripts/uninstall_user_tools.sh resolve-aac-tools/
           cp scripts/resolve_aac_*.py resolve-aac-tools/
+          cp scripts/set_render_location.py scripts/resolve_render_location_watch.py resolve-aac-tools/
           cp scripts/resolve-with-aac-mediapool-watch.sh resolve-aac-tools/
           cp scripts/resolve-with-fonts.sh resolve-aac-tools/
           cp experiments/ffmpeg-patch/build_resolve_ffmpeg_aac.sh resolve-aac-tools/

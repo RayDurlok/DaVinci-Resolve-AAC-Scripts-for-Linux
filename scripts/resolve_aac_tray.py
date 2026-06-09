@@ -44,6 +44,10 @@ LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
 EXPORT_WATCH_LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
 EXPORT_WATCH_STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
+INTERCEPT_WATCH_LOG_PATH = Path("/tmp/resolve_render_location_watch.log")
+INTERCEPT_WATCH_STOP_PATH = Path("/tmp/resolve_render_location_watch.stop")
+NATIVE_DIALOG_PLUGIN = "libqxdgdesktopportal.so"
+NATIVE_DIALOG_PLUGIN_LINK = SCRIPT_DIR.parent / "qt-plugins" / "platformthemes" / NATIVE_DIALOG_PLUGIN
 RESOLVE_FONT_WRAPPER_PATH = Path.home() / ".local" / "bin" / "resolve-with-fonts"
 RESOLVE_DESKTOP_OVERRIDE_PATH = (
     Path.home() / ".local" / "share" / "applications" / "com.blackmagicdesign.resolve.desktop"
@@ -73,6 +77,7 @@ def load_config():
         "cache_dir": str(DEFAULT_CACHE_DIR),
         "watch_manual_resolve": True,
         "remux_exports": False,
+        "intercept_deliver_browse": False,
     }
     try:
         data = json.loads(CONFIG_PATH.read_text())
@@ -143,6 +148,8 @@ class ResolveAacTray(QObject):
         self.watcher_process = None
         self.export_watcher_process = None
         self.export_watcher_log_file = None
+        self.intercept_watcher_process = None
+        self.intercept_watcher_log_file = None
         self.manual_resolve_was_running = False
 
         icon = QIcon.fromTheme("media-playback-start")
@@ -225,6 +232,25 @@ class ResolveAacTray(QObject):
         self.open_cache_action.triggered.connect(lambda: self.open_path(Path(self.config["cache_dir"])))
         self.menu.addAction(self.open_cache_action)
 
+        self.render_location_action = QAction("Set render location...")
+        self.render_location_action.setToolTip(
+            "Open a native KDE folder picker and write the choice into the Deliver 'Location' field "
+            "(replaces Resolve's non-native Browse dialog). Resolve must be running."
+        )
+        self.render_location_action.triggered.connect(self.set_render_location)
+        self.menu.addAction(self.render_location_action)
+
+        self.intercept_browse_action = QAction("Native file dialogs")
+        self.intercept_browse_action.setCheckable(True)
+        self.intercept_browse_action.setChecked(bool(self.config["intercept_deliver_browse"]))
+        self.intercept_browse_action.setToolTip(
+            "Off by default. On: installs the portal plugin so Resolve's dialogs (Export Still, "
+            "Import, ...) go native after a restart, and auto-replaces the Deliver 'Browse' browser "
+            "(while the MediaPool watcher runs). Off: removes the plugin again."
+        )
+        self.intercept_browse_action.toggled.connect(self.set_intercept_deliver_browse)
+        self.menu.addAction(self.intercept_browse_action)
+
         self.open_log_action = QAction("Open launcher log")
         self.open_log_action.setToolTip("Open the Resolve AAC launcher log for troubleshooting.")
         self.open_log_action.triggered.connect(lambda: self.open_path(LOG_PATH))
@@ -251,6 +277,10 @@ class ResolveAacTray(QObject):
 
         if self.config["remux_exports"]:
             QTimer.singleShot(500, lambda: self.start_export_watcher(notify=False))
+        # Portal-Fix installiert halten, solange der Toggle an ist (ueberlebt Neustart/fresh clone).
+        if self.config["intercept_deliver_browse"]:
+            self.ensure_native_dialog_plugin()
+        # Intercept-Watcher wird in tick() an den MediaPool-Watcher gekoppelt gestartet/gestoppt.
 
         self.update_status()
 
@@ -750,6 +780,176 @@ Name[en_US]=DaVinci Resolve
             self.stop_export_watcher()
         self.update_status()
 
+    def render_location_script(self):
+        return SCRIPT_DIR / "set_render_location.py"
+
+    def intercept_watcher_path(self):
+        return SCRIPT_DIR / "resolve_render_location_watch.py"
+
+    def set_render_location(self):
+        script = self.render_location_script()
+        if not script.exists():
+            self.error("Missing script", f"Could not find:\n{script}")
+            return
+        if not self.resolve_is_running():
+            self.notify("Resolve AAC Tools", "Resolve is not running.")
+            return
+        try:
+            subprocess.Popen([sys.executable, str(script)], env=self.current_env())
+        except Exception as exc:
+            self.error("Could not open render-location picker", str(exc))
+
+    def find_system_portal_plugin(self):
+        """Locate the system Qt5 xdg-desktop-portal platformtheme plugin (distro-agnostic)."""
+        common = [
+            "/usr/lib64/qt5/plugins/platformthemes",
+            "/usr/lib/qt5/plugins/platformthemes",
+            "/usr/lib/x86_64-linux-gnu/qt5/plugins/platformthemes",
+            "/usr/lib/aarch64-linux-gnu/qt5/plugins/platformthemes",
+            "/usr/lib/qt/plugins/platformthemes",
+        ]
+        for base in common:
+            candidate = Path(base) / NATIVE_DIALOG_PLUGIN
+            if candidate.exists():
+                return candidate
+        try:
+            found = subprocess.run(
+                ["find", "/usr/lib", "/usr/lib64", "-name", NATIVE_DIALOG_PLUGIN],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=15,
+            ).stdout.split()
+        except Exception:
+            found = []
+        qt5 = [p for p in found if "qt5" in p or "/qt/" in p]  # Resolve is Qt5 -> avoid qt6
+        if qt5:
+            return Path(qt5[0])
+        return Path(found[0]) if found else None
+
+    def ensure_native_dialog_plugin(self):
+        """Install the qt-plugins symlink so Resolve routes its Qt file dialogs through the
+        portal (Export Still/Import/Export Project go native). Returns 'ok'/'installed'/'missing'."""
+        link = NATIVE_DIALOG_PLUGIN_LINK
+        if link.is_symlink() and link.exists():
+            return "ok"
+        source = self.find_system_portal_plugin()
+        if not source:
+            return "missing"
+        try:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            if link.is_symlink() or link.exists():
+                link.unlink()
+            link.symlink_to(source)
+            return "installed"
+        except OSError:
+            return "missing"
+
+    def remove_native_dialog_plugin(self):
+        """Remove the qt-plugins symlink (reverts the passive portal fix on next Resolve start)."""
+        link = NATIVE_DIALOG_PLUGIN_LINK
+        try:
+            if link.is_symlink() or link.exists():
+                link.unlink()
+                return True
+        except OSError:
+            pass
+        return False
+
+    def set_intercept_deliver_browse(self, enabled):
+        self.config["intercept_deliver_browse"] = bool(enabled)
+        save_config(self.config)
+        if enabled:
+            status = self.ensure_native_dialog_plugin()
+            if status == "missing":
+                self.notify("Resolve AAC Tools",
+                            "Portal plugin not found - install your distro's Qt5 "
+                            "xdg-desktop-portal platformtheme package.")
+            else:
+                message = "Native file dialogs on."
+                if status == "installed":
+                    message += " Restart Resolve so Export Still/Import become native too."
+                elif not self.watcher_is_running():
+                    message += " Deliver intercept starts with the MediaPool watcher."
+                self.notify("Resolve AAC Tools", message)
+        else:
+            if self.remove_native_dialog_plugin():
+                self.notify("Resolve AAC Tools",
+                            "Native file dialogs off. Restart Resolve to revert Export Still/Import.")
+        # Deliver-Abfang an den MediaPool-Watcher gekoppelt starten/stoppen.
+        self.reconcile_intercept_watcher()
+        self.update_status()
+
+    def intercept_watcher_args(self):
+        return [
+            sys.executable,
+            str(self.intercept_watcher_path()),
+            "--require-mediapool-watcher",
+            "--quiet",
+        ]
+
+    def intercept_watcher_is_running(self):
+        if self.intercept_watcher_process and self.intercept_watcher_process.poll() is None:
+            return True
+        try:
+            result = subprocess.run(
+                ["pgrep", "-u", str(os.getuid()), "-f", "resolve_render_location_watch.py"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            return False
+        return result.returncode == 0
+
+    def start_intercept_watcher(self, notify=True):
+        watcher = self.intercept_watcher_path()
+        if not watcher.exists():
+            self.error("Missing browse-intercept watcher", f"Could not find:\n{watcher}")
+            return
+
+        if self.intercept_watcher_is_running():
+            return
+
+        try:
+            INTERCEPT_WATCH_STOP_PATH.unlink()
+        except OSError:
+            pass
+
+        try:
+            self.intercept_watcher_log_file = INTERCEPT_WATCH_LOG_PATH.open("a")
+            self.intercept_watcher_process = subprocess.Popen(
+                self.intercept_watcher_args(),
+                stdout=self.intercept_watcher_log_file,
+                stderr=subprocess.STDOUT,
+                env=self.current_env(),
+            )
+        except Exception as exc:
+            if self.intercept_watcher_log_file:
+                self.intercept_watcher_log_file.close()
+                self.intercept_watcher_log_file = None
+            self.error("Could not start browse-intercept watcher", str(exc))
+            return
+
+        if notify:
+            self.notify("Resolve AAC Tools", "Native Deliver browse enabled.")
+        self.update_status()
+
+    def stop_intercept_watcher(self, notify=True):
+        try:
+            INTERCEPT_WATCH_STOP_PATH.write_text("stop\n")
+        except OSError:
+            pass
+
+        if self.intercept_watcher_process and self.intercept_watcher_process.poll() is None:
+            self.intercept_watcher_process.terminate()
+
+        self.intercept_watcher_process = None
+        if self.intercept_watcher_log_file:
+            self.intercept_watcher_log_file.close()
+            self.intercept_watcher_log_file = None
+
+        if notify:
+            self.notify("Resolve AAC Tools", "Native Deliver browse disabled.")
+        self.update_status()
+
     def confirm_uninstall(self, title, message):
         result = QMessageBox.question(
             None,
@@ -921,8 +1121,17 @@ Name[en_US]=DaVinci Resolve
     def tick(self):
         if self.config["remux_exports"] and not self.export_watcher_is_running():
             self.start_export_watcher(notify=False)
+        self.reconcile_intercept_watcher()
         self.update_status()
         self.consume_start_request()
+
+    def reconcile_intercept_watcher(self):
+        # Lebenszyklus an den MediaPool-Watcher koppeln: nur laufen, waehrend dieser laeuft.
+        want = bool(self.config["intercept_deliver_browse"]) and self.watcher_is_running()
+        if want and not self.intercept_watcher_is_running():
+            self.start_intercept_watcher(notify=False)
+        elif not want and self.intercept_watcher_is_running():
+            self.stop_intercept_watcher(notify=False)
 
     def check_manual_resolve(self):
         if not self.config["watch_manual_resolve"]:
@@ -948,6 +1157,15 @@ Name[en_US]=DaVinci Resolve
     def quit(self):
         if self.export_watcher_log_file:
             self.export_watcher_log_file.close()
+        # Browse-Intercept-Watcher nicht verwaist weiterlaufen lassen
+        try:
+            INTERCEPT_WATCH_STOP_PATH.write_text("stop\n")
+        except OSError:
+            pass
+        if self.intercept_watcher_process and self.intercept_watcher_process.poll() is None:
+            self.intercept_watcher_process.terminate()
+        if self.intercept_watcher_log_file:
+            self.intercept_watcher_log_file.close()
         save_config(self.config)
         self.tray.hide()
         self.app.quit()

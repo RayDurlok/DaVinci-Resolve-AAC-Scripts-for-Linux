@@ -38,6 +38,13 @@ if [[ -n "${RESOLVE_AAC_CACHE_DIR:-}" ]]; then
   WATCH_ARGS+=(--cache-dir "$RESOLVE_AAC_CACHE_DIR")
 fi
 
+# Native KDE-Dateidialoge statt Resolves altem Qt-Widget-Dialog (siehe resolve-with-fonts.sh).
+RESOLVE_QT_PLUGINS="$(cd "$APP_DIR/.." && pwd)/qt-plugins"
+if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
+  export QT_QPA_PLATFORMTHEME=xdgdesktopportal
+  export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+fi
+
 rm -f "$STOP"
 
 /opt/resolve/bin/resolve "$@" &

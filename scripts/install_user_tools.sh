@@ -45,18 +45,19 @@ prompt_yes_no() {
 }
 
 install_required_deps() {
+  # python3-gobject (gi) drives the native portal "Save as" dialog; kdialog is the fallback.
   if command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y python3 ffmpeg
+    sudo dnf install -y python3 ffmpeg python3-gobject kdialog
   elif command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update
-    sudo apt-get install -y python3 ffmpeg
+    sudo apt-get install -y python3 ffmpeg python3-gi kdialog
   elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -S --needed python ffmpeg
+    sudo pacman -S --needed python ffmpeg python-gobject kdialog
   elif command -v zypper >/dev/null 2>&1; then
-    sudo zypper install -y python3 ffmpeg
+    sudo zypper install -y python3 ffmpeg python3-gobject kdialog
   else
     echo "Could not detect a supported package manager."
-    echo "Please install python3, ffmpeg, and ffprobe manually."
+    echo "Please install python3, ffmpeg, ffprobe, python3-gobject (gi), and kdialog manually."
     return 1
   fi
 }
