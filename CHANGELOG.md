@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/). Releases before this
-file are tracked through git tags and GitHub releases (latest: `v0.1.8`).
+file are tracked through git tags and GitHub releases (latest: `v0.1.9`).
 
 ## [Unreleased]
+
+## [0.1.9] - 2026-06-10
 
 ### Added
 - Native file dialogs for Resolve, behind a tray toggle `Native file dialogs`
@@ -20,8 +22,6 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.8`).
   - `Set render location...` tray action opens the same native picker on demand.
 - `set_render_location.py` and `resolve_render_location_watch.py`, shipped in the
   release archive.
-
-### Added
 - Export remux watcher can send a desktop notification (`notify-send`) when a
   remux finishes (and if one fails), behind a new `--notify` flag. The tray passes
   it, so you get a popup when an export has been converted to AAC.
@@ -50,3 +50,8 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.8`).
   native "Save as" picker.
 - `resolve-with-fonts.sh` and `resolve-with-aac-mediapool-watch.sh` export the
   xdg-desktop-portal Qt platform theme when the plugin is present.
+
+### Docs
+- Clarified that the Toxblh AAC export plugin works only on DaVinci Resolve 20;
+  on Resolve 21 use the `Remux all exports in webfriendly AAC` toggle. Trimmed the
+  README (removed the failed FFmpeg-patch section).

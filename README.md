@@ -11,9 +11,12 @@ It watches Resolve, converts AAC audio to Resolve-friendly PCM, and replaces
 imported clips automatically. Video streams are copied, not re-encoded. Original
 files stay untouched.
 
-Optional AAC export plugin by Toxblh:
-https://github.com/Toxblh/davinci-linux-aac-codec
-(Can be installed with one click after installing the tray app)
+For AAC **exports**:
+
+- **Resolve 21:** enable the tray toggle `Remux all exports in webfriendly AAC`.
+- **Resolve 20:** install the optional Toxblh AAC export plugin
+  (https://github.com/Toxblh/davinci-linux-aac-codec) with one click in the tray.
+  This plugin does **not** work on Resolve 21.
 
 ## Requirements
 
@@ -60,8 +63,8 @@ Tray basics:
 - Right-click the tray icon to change settings.
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
-- Use `AAC export plugin: Install` once if you also want AAC as an export option.
-- Experimental and off by default: enable `Remux all exports in webfriendly AAC` to watch Resolve render outputs and convert FLAC, PCM, and broken AAC audio to browser-friendly AAC-LC in-place after export. You get a desktop notification when a remux finishes.
+- For AAC exports on **Resolve 21**: enable `Remux all exports in webfriendly AAC` (off by default). It watches your render outputs and converts FLAC, PCM, and broken AAC audio to browser-friendly AAC-LC in place, with a desktop notification when done.
+- On **Resolve 20** only: `AAC export plugin: Install` adds AAC as a native export option (Toxblh plugin). It does not work on Resolve 21.
 - Use `Resolve font fix: Install` once if Resolve/Fusion does not see user-installed fonts.
 - Click either optional install entry again after it shows `Installed` to uninstall it.
 
@@ -105,16 +108,12 @@ The uninstaller removes the commands, desktop files, Resolve menu scripts,
 autostart entry, config, and optional font-fix desktop override. It keeps cached
 remux files in `~/.cache/resolve-aac-remux` unless you pass `--remove-cache`.
 
-PySide6 is required for the tray app:
+PySide6 is required — the tray is how these tools are meant to be used:
 
 ```bash
 resolve-aac-tray
 resolve-aac-start
 ```
-
-The MediaPool watcher, Resolve menu scripts, and command-line tools can still
-work without PySide6, but they are fallback tools. The intended app experience is
-the tray.
 
 ## How It Works
 
@@ -140,21 +139,20 @@ resolve-aac-start
 When Resolve is started through the tray or `resolve-aac-start`, closing Resolve
 also stops the MediaPool watcher. The tray icon stays available.
 
-The optional AAC export plugin is separate from the watcher. It comes from
-Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
-`IOPlugins` folder. Resolve loads it on startup, so restart Resolve after
-installing it.
+The optional AAC export plugin (Toxblh's `davinci-linux-aac-codec`) is separate
+from the watcher and **only works on DaVinci Resolve 20**. It installs once into
+Resolve's `IOPlugins` folder; restart Resolve after installing. On Resolve 21 it
+no longer works (Resolve crashes on export) — use the `Remux all exports in
+webfriendly AAC` toggle instead.
 
-The experimental export remux watcher is a separate tray toggle for AAC exports
-and is off by default. When enabled, it detects files that Resolve has open for
-writing (actual render outputs, not input clips), waits until Resolve closes the
-output file, and then rewrites the audio stream as browser-friendly AAC-LC while
-copying the video stream. It converts FLAC, PCM, and broken/incomplete AAC audio
-to AAC-LC and leaves healthy AAC untouched. The one exception is an audio-only
-PCM render (PCM with no video stream, e.g. a WAV master): that is left as PCM. It
-replaces the exported file in-place and does not create a watch folder, sidecar
-`.web.mp4`, or backup file. The watcher only sees renders that happen while it
-is running.
+The export remux watcher is a separate tray toggle for AAC exports, off by
+default. When enabled, it detects Resolve's render outputs, waits until Resolve
+finishes writing, and rewrites the audio stream as browser-friendly AAC-LC while
+copying the video stream. It converts FLAC, PCM, and broken/incomplete AAC and
+leaves healthy AAC untouched; an audio-only PCM render (PCM with no video, e.g. a
+WAV master) is left as PCM. It only converts files rendered while it runs and
+never touches your source clips or the PCM cache. It replaces the exported file
+in place — no watch folder, sidecar, or backup file.
 
 The optional Resolve font fix is also a one-time install, not a background
 watcher. It installs a local Resolve launcher wrapper and desktop override so
@@ -224,7 +222,7 @@ Batch convert files or folders:
 resolve-aac-import /path/to/media-or-folder
 ```
 
-Run the experimental export remux watcher directly:
+Run the export remux watcher directly:
 
 ```bash
 resolve-aac-export-watch --detect-resolve-outputs --replace --no-backup
@@ -244,39 +242,11 @@ Cached output:
 $RESOLVE_AAC_CACHE_DIR/
 ```
 
-## Failed Experiment: FFmpeg Patch
-
-Some Resolve Linux builds ship FFmpeg libraries with AAC disabled. This repo
-includes experimental scripts that build AAC-enabled FFmpeg libraries and install
-them into `/opt/resolve/libs` with a backup:
-
-From a source checkout:
-
-```bash
-./experiments/ffmpeg-patch/build_resolve_ffmpeg_aac.sh
-./experiments/ffmpeg-patch/install_resolve_ffmpeg_aac.sh
-```
-
-This did not solve AAC playback reliably in testing. The replacement libraries
-could decode AAC outside Resolve, but Resolve still failed to play AAC audio
-correctly.
-
-Restore the latest backup:
-
-```bash
-./experiments/ffmpeg-patch/restore_resolve_ffmpeg_backup.sh
-```
-
-This path is unsupported and not recommended for normal use. The code is kept in
-the repository for anyone who wants to continue experimenting.
-
 ## Repository Layout
 
 ```text
 scripts/                  User-facing Resolve AAC tools
 qt-plugins/               Native-dialog Qt platformtheme plugin (generated by the toggle)
-experiments/ffmpeg-patch/ Failed FFmpeg library replacement experiment
-experiments/io-plugin/    DaVinci Resolve IOPlugin probe experiment
 test-media/               Small AAC test files
 ```
 
