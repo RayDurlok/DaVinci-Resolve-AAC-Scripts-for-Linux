@@ -201,11 +201,12 @@ class ResolveAacTray(QObject):
         self.watch_manual_action.toggled.connect(self.set_watch_manual_resolve)
         self.menu.addAction(self.watch_manual_action)
 
-        self.remux_exports_action = QAction("Remux exports to webfriendly AAC")
+        self.remux_exports_action = QAction("Remux all exports in webfriendly AAC")
         self.remux_exports_action.setCheckable(True)
         self.remux_exports_action.setChecked(bool(self.config["remux_exports"]))
         self.remux_exports_action.setToolTip(
-            "Off by default. While enabled, detect Resolve render outputs and repair AAC audio in-place after export."
+            "Off by default. While enabled, detect Resolve render outputs and convert FLAC, PCM, and broken AAC "
+            "audio to browser-friendly AAC-LC in-place after export. Audio-only PCM renders (no video) are left as PCM."
         )
         self.remux_exports_action.toggled.connect(self.set_remux_exports)
         self.menu.addAction(self.remux_exports_action)
@@ -364,6 +365,9 @@ class ResolveAacTray(QObject):
             "--replace",
             "--no-backup",
             "--quiet",
+            "--notify",
+            "--interval",
+            "0.2",
         ]
 
     def resolve_is_running(self):

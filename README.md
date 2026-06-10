@@ -61,7 +61,7 @@ Tray basics:
 - Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
 - Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
 - Use `AAC export plugin: Install` once if you also want AAC as an export option.
-- Experimental and off by default: enable `Remux exports to webfriendly AAC` to watch Resolve render outputs and repair AAC metadata in-place after export.
+- Experimental and off by default: enable `Remux all exports in webfriendly AAC` to watch Resolve render outputs and convert FLAC, PCM, and broken AAC audio to browser-friendly AAC-LC in-place after export. You get a desktop notification when a remux finishes.
 - Use `Resolve font fix: Install` once if Resolve/Fusion does not see user-installed fonts.
 - Click either optional install entry again after it shows `Installed` to uninstall it.
 
@@ -146,9 +146,12 @@ Toxblh's `davinci-linux-aac-codec` project and is installed once into Resolve's
 installing it.
 
 The experimental export remux watcher is a separate tray toggle for AAC exports
-and is off by default. When enabled, it detects files that Resolve is actively
-rendering, waits until Resolve closes the output file, and then rewrites the
-audio stream as browser-friendly AAC-LC while copying the video stream. It
+and is off by default. When enabled, it detects files that Resolve has open for
+writing (actual render outputs, not input clips), waits until Resolve closes the
+output file, and then rewrites the audio stream as browser-friendly AAC-LC while
+copying the video stream. It converts FLAC, PCM, and broken/incomplete AAC audio
+to AAC-LC and leaves healthy AAC untouched. The one exception is an audio-only
+PCM render (PCM with no video stream, e.g. a WAV master): that is left as PCM. It
 replaces the exported file in-place and does not create a watch folder, sidecar
 `.web.mp4`, or backup file. The watcher only sees renders that happen while it
 is running.
@@ -164,13 +167,15 @@ When enabled it installs a Qt `platformthemes` plugin (detected on your system,
 distro-agnostic) so Resolve routes its standard file dialogs — Export Still,
 Import, Export Project — through the desktop's native portal/KDE dialog after a
 restart. It also replaces Resolve's non-native Deliver `File Destination` browser
-with a native "Save as" dialog: the watcher detects that window, closes it, opens
+with a native "Save as" dialog: the watcher detects that window, closes it (by
+sending it `WM_DELETE_WINDOW` directly so it works regardless of focus), opens
 the native picker, and writes the chosen folder and name into the render
 `Location` / `Custom Name` through the scripting API. That intercept runs only
 while the MediaPool watcher runs. The `Set render location...` action opens the
 same picker on demand. Turning the toggle off removes the plugin again (restart
 Resolve to revert). Requires `python3-gobject` (gi) and `kdialog`, which the
-installer adds.
+installer adds; the focus-independent close uses `python3-xlib` when present and
+otherwise falls back to sending Escape via ydotool.
 
 ## Optional Tools
 

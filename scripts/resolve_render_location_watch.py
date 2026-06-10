@@ -85,20 +85,64 @@ def send_escape():
     subprocess.run(["ydotool", "key", f"{KEY_ESC}:1", f"{KEY_ESC}:0"], env=env, check=False)
 
 
+def close_window_via_x(wid):
+    """Close window `wid` (hex string) by sending it WM_DELETE_WINDOW directly.
+
+    This is exactly what a window manager delivers when you click a window's
+    close button, and Qt/Tk honour it. Focus-independent: it targets the specific
+    window regardless of which window currently has keyboard focus, unlike sending
+    Escape through ydotool. Returns True if the request was sent, False if Xlib is
+    unavailable or the send failed (caller then falls back to Escape).
+    """
+    try:
+        from Xlib import X, display
+        from Xlib.protocol import event
+    except Exception:
+        return False
+    disp = None
+    try:
+        disp = display.Display()
+        window = disp.create_resource_object("window", int(wid, 16))
+        wm_protocols = disp.intern_atom("WM_PROTOCOLS")
+        wm_delete_window = disp.intern_atom("WM_DELETE_WINDOW")
+        client_message = event.ClientMessage(
+            window=window,
+            client_type=wm_protocols,
+            data=(32, [wm_delete_window, X.CurrentTime, 0, 0, 0]),
+        )
+        window.send_event(client_message)
+        disp.flush()
+        disp.sync()
+        return True
+    except Exception:
+        return False
+    finally:
+        if disp is not None:
+            try:
+                disp.close()
+            except Exception:
+                pass
+
+
 def handle_intercept(resolve, quiet):
     # Das Fenster mit Titel "File Destination" existiert nur auf der Deliver-Page,
     # daher kein API-Page-Check noetig (waehrend des modalen Dialogs blockiert die API ohnehin).
-    # Resolves Dialog zuverlaessig schliessen: beim ERSTEN Oeffnen hat es u. U. noch keinen
-    # Fokus, ein einzelnes Esc verpufft. Daher Esc wiederholen, bis das Fenster weg ist.
+    # Resolves Dialog zuverlaessig schliessen: ydotool-Esc geht ans fokussierte Fenster und
+    # verpufft beim ERSTEN Oeffnen (Dialog noch nicht fokussiert). Daher primaer ein gezieltes
+    # EWMH _NET_CLOSE_WINDOW an genau dieses Fenster (fokus-unabhaengig); Esc nur als Fallback.
     closed = False
-    for _ in range(12):
-        time.sleep(0.12)
-        if find_file_destination_window() is None:
+    for attempt in range(15):
+        wid = find_file_destination_window()
+        if wid is None:
             closed = True
             break
-        send_escape()
+        if not close_window_via_x(wid):
+            send_escape()            # Xlib unavailable -> focus-based fallback
+        elif attempt >= 3:
+            send_escape()            # EWMH close not taking effect -> add Esc fallback
+        time.sleep(0.12)
     if not closed:
-        log(quiet, "warning: Resolve's File Destination dialog still open after Esc retries.")
+        log(quiet, "warning: Resolve's File Destination dialog still open after close attempts.")
 
     start = srl.load_start_dir(None)
     chosen = srl.pick_save_path(start)

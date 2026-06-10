@@ -21,7 +21,31 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.8`).
 - `set_render_location.py` and `resolve_render_location_watch.py`, shipped in the
   release archive.
 
+### Added
+- Export remux watcher can send a desktop notification (`notify-send`) when a
+  remux finishes (and if one fails), behind a new `--notify` flag. The tray passes
+  it, so you get a popup when an export has been converted to AAC.
+
 ### Changed
+- Export remux watcher now converts FLAC, PCM, and broken/incomplete AAC audio to
+  browser-friendly AAC-LC (previously it only repaired broken AAC metadata).
+  Healthy AAC is left untouched, and audio-only PCM renders (PCM with no video,
+  e.g. WAV masters) are kept as PCM.
+- Deliver "File Destination" intercept now closes Resolve's dialog by sending it
+  `WM_DELETE_WINDOW` directly (via Xlib), instead of blasting Escape at whatever
+  window happens to be focused. This is focus-independent and fixes having to
+  click Export twice (first click previously left both Resolve's dialog and the
+  native picker open). Escape via ydotool remains a fallback.
+- Export remux watcher in `--detect-resolve-outputs` mode skips the MediaPool
+  watcher's PCM intermediates (the `resolve-aac-remux` cache and `aac_remux/`
+  folders) and only converts files created during the current watch session, so
+  it never touches input or source clips. It polls fast (0.2s, set by the tray,
+  with a cached Resolve-PID lookup) because Resolve holds a fast render's output
+  open for writing only briefly (sub-second); the previous 1–3s polling missed
+  those. (An earlier attempt that only looked at write-opened handles also missed
+  real renders and was reverted.)
+- Renamed the tray toggle `Remux exports to webfriendly AAC` to
+  `Remux all exports in webfriendly AAC`.
 - Installer now also installs `python3-gobject` (gi) and `kdialog`, used by the
   native "Save as" picker.
 - `resolve-with-fonts.sh` and `resolve-with-aac-mediapool-watch.sh` export the

@@ -12,6 +12,10 @@ from pathlib import Path
 
 
 MEDIA_EXTS = {".mp4", ".m4v", ".mov"}
+# Directory names of the MediaPool watcher's PCM intermediates (cache dir and
+# per-source `aac_remux/` copies). Files under these are Resolve inputs, not
+# render outputs, and must never be remuxed to AAC.
+INTERMEDIATE_DIR_NAMES = {"aac_remux", "resolve-aac-remux"}
 LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
 STATE_PATH = Path.home() / ".cache" / "resolve-aac-export-watch" / "state.json"
 STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
@@ -67,7 +71,16 @@ def iter_candidates(paths):
             )
 
 
+_resolve_pids_cache = {"pids": [], "at": 0.0}
+
+
 def resolve_pids():
+    # Cache for ~1s so fast detect-mode polling does not spawn pgrep many times
+    # per second. Resolve's PID does not change between renders.
+    now = time.time()
+    if now - _resolve_pids_cache["at"] < 1.0:
+        return _resolve_pids_cache["pids"]
+
     try:
         result = subprocess.run(
             ["pgrep", "-u", str(os.getuid()), "-f", "/opt/resolve/bin/resolve"],
@@ -77,14 +90,33 @@ def resolve_pids():
             stderr=subprocess.DEVNULL,
         )
     except Exception:
+        _resolve_pids_cache.update(pids=[], at=now)
         return []
 
     if result.returncode != 0:
+        _resolve_pids_cache.update(pids=[], at=now)
         return []
-    return [pid.strip() for pid in result.stdout.splitlines() if pid.strip().isdigit()]
+    pids = [pid.strip() for pid in result.stdout.splitlines() if pid.strip().isdigit()]
+    _resolve_pids_cache.update(pids=pids, at=now)
+    return pids
+
+
+def is_intermediate_path(path):
+    """True for the MediaPool watcher's PCM intermediates, which Resolve opens as
+    *input* media, not render outputs: the cache dir (`resolve-aac-remux`) and the
+    source-folder `aac_remux/` copies. These must never be converted to AAC.
+    """
+    return any(part in INTERMEDIATE_DIR_NAMES for part in path.parts)
 
 
 def iter_resolve_output_paths():
+    """Yield media files Resolve currently has open (render outputs).
+
+    Resolve keeps a render output open (for writing during the render, then a
+    lingering handle afterwards), so detecting any open media handle reliably
+    catches it. Intermediates and source clips are filtered out later by path and
+    by modification time, not by the open mode (which misses short renders).
+    """
     for pid in resolve_pids():
         fd_dir = Path("/proc") / pid / "fd"
         try:
@@ -137,14 +169,50 @@ def audio_metadata_is_broken(audio):
     return profile == "-1" or mime == "mp4a.40.0" or not has_extradata
 
 
-def has_broken_resolve_aac(path):
+def has_video_stream(path):
+    command = [
+        "ffprobe",
+        "-hide_banner",
+        "-v",
+        "error",
+        "-select_streams",
+        "v",
+        "-show_entries",
+        "stream=codec_type",
+        "-of",
+        "csv=p=0",
+        str(path),
+    ]
+    try:
+        result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        return False
+    return bool(result.stdout.strip())
+
+
+def needs_aac_conversion(audio, path):
+    """True if the audio should be (re-)encoded to browser-friendly AAC-LC.
+
+    Covers FLAC, any PCM variant, and already-AAC files with broken metadata.
+    Healthy AAC and other codecs are left untouched. Audio-only PCM renders
+    (PCM with no video stream, e.g. WAV masters) are left as PCM.
+    """
+    codec = str(audio.get("codec_name", ""))
+    if codec.startswith("pcm"):
+        return has_video_stream(path)
+    if codec == "flac":
+        return True
+    return audio_metadata_is_broken(audio)
+
+
+def needs_conversion(path):
     try:
         audio = ffprobe_audio(path)
     except Exception as exc:
         log(f"skip probe failed: {path}: {exc}")
         return False
 
-    return audio_metadata_is_broken(audio)
+    return needs_aac_conversion(audio, path)
 
 
 def verify_fixed(path):
@@ -176,6 +244,23 @@ def fixed_output_path(input_path, suffix):
     return input_path.with_name(input_path.name + suffix)
 
 
+def desktop_notify(args, title, message):
+    """Best-effort desktop notification via notify-send. No-op unless --notify."""
+    if not getattr(args, "notify", False):
+        return
+    notifier = shutil.which("notify-send")
+    if not notifier:
+        return
+    try:
+        subprocess.Popen(
+            [notifier, "-a", "Resolve AAC Tools", "-i", "video-x-generic", title, message],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
 def convert(path, args):
     temp_path = path.with_name(f".{path.name}.resolve-aac-fix-{uuid.uuid4().hex}.tmp.mp4")
     output_path = path if args.replace else unique_path(fixed_output_path(path, args.suffix))
@@ -205,16 +290,19 @@ def convert(path, args):
         str(temp_path),
     ]
     log(f"fixing: {path}")
-    subprocess.run(
-        command,
-        check=True,
-        stdout=subprocess.DEVNULL if args.quiet else None,
-        stderr=subprocess.DEVNULL if args.quiet else None,
-    )
-
-    if not verify_fixed(temp_path):
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.DEVNULL if args.quiet else None,
+            stderr=subprocess.DEVNULL if args.quiet else None,
+        )
+        if not verify_fixed(temp_path):
+            raise RuntimeError(f"Fixed file failed verification: {temp_path}")
+    except Exception:
         temp_path.unlink(missing_ok=True)
-        raise RuntimeError(f"Fixed file failed verification: {temp_path}")
+        desktop_notify(args, "Export remux failed", path.name)
+        raise
 
     backup_path = None
     if args.replace:
@@ -228,10 +316,12 @@ def convert(path, args):
                 backup_path.replace(path)
             raise
         log(f"replaced: {path}" + (f" backup={backup_path}" if backup_path else ""))
+        desktop_notify(args, "Export remuxed to AAC ✓", path.name)
         return path
 
     temp_path.replace(output_path)
     log(f"created: {output_path}")
+    desktop_notify(args, "Export remuxed to AAC ✓", output_path.name)
     return output_path
 
 
@@ -255,7 +345,7 @@ def scan_once(args, state):
         if not is_stable(path, args.stable_seconds):
             log(f"waiting: still writing {path}")
             continue
-        if not has_broken_resolve_aac(path):
+        if not needs_conversion(path):
             state[str(path)] = current
             continue
         convert(path, args)
@@ -270,11 +360,18 @@ def process_path(path, args, state, retry_probe_failures=False):
         return False
     if path.name.endswith(args.backup_suffix) or path.name.endswith(args.suffix):
         return False
+    if is_intermediate_path(path):
+        return False
 
     try:
-        current = fingerprint(path)
+        stat = path.stat()
     except FileNotFoundError:
         return False
+    # Only remux files produced during this watch session (real renders); never
+    # touch pre-existing source/input clips that Resolve merely closed.
+    if getattr(args, "started_at", 0) and stat.st_mtime < args.started_at:
+        return False
+    current = f"{stat.st_size}:{int(stat.st_mtime)}"
 
     if state.get(str(path)) == current and not args.retry:
         return False
@@ -284,12 +381,12 @@ def process_path(path, args, state, retry_probe_failures=False):
 
     if retry_probe_failures:
         try:
-            broken = audio_metadata_is_broken(ffprobe_audio(path))
+            broken = needs_aac_conversion(ffprobe_audio(path), path)
         except Exception as exc:
             log(f"waiting: probe failed for recent Resolve output {path}: {exc}")
             return False
     else:
-        broken = has_broken_resolve_aac(path)
+        broken = needs_conversion(path)
 
     if not broken:
         state[str(path)] = current
@@ -303,7 +400,11 @@ def process_path(path, args, state, retry_probe_failures=False):
 def scan_detected_resolve_outputs_once(args, state, runtime):
     active = runtime.setdefault("active", {})
     closed = runtime.setdefault("closed", {})
-    open_paths = {str(path) for path in iter_resolve_output_paths()}
+    open_paths = {
+        str(path)
+        for path in iter_resolve_output_paths()
+        if not is_intermediate_path(path)
+    }
 
     for raw_path in sorted(open_paths):
         if raw_path not in active:
@@ -363,6 +464,7 @@ def parse_args():
     parser.add_argument("--detect-resolve-outputs", action="store_true", help="Detect render output files from Resolve's open file handles instead of scanning folders.")
     parser.add_argument("--closed-grace-seconds", type=float, default=3.0, help="Wait this long after Resolve closes an output file before repairing it.")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--notify", action="store_true", help="Send a desktop notification (notify-send) when a remux starts and finishes.")
     parser.set_defaults(backup=True)
     return parser.parse_args()
 
