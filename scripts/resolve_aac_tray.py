@@ -370,17 +370,48 @@ class ResolveAacTray(QObject):
             "0.2",
         ]
 
-    def resolve_is_running(self):
+    def process_matches_resolve(self, pid_dir):
         try:
-            result = subprocess.run(
-                ["pgrep", "-u", str(os.getuid()), "-f", "/opt/resolve/bin/resolve"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-        except Exception:
+            cmdline = (pid_dir / "cmdline").read_bytes().split(b"\0")
+        except OSError:
             return False
-        return result.returncode == 0
+
+        args = [arg.decode("utf-8", errors="replace") for arg in cmdline if arg]
+        if not args:
+            return False
+
+        executable = args[0]
+        if executable == "/opt/resolve/bin/resolve":
+            return True
+
+        try:
+            resolved_exe = (pid_dir / "exe").resolve()
+        except OSError:
+            resolved_exe = None
+
+        if resolved_exe == Path("/opt/resolve/bin/resolve"):
+            return True
+
+        return False
+
+    def resolve_is_running(self):
+        proc = Path("/proc")
+        if not proc.exists():
+            return False
+
+        current_uid = os.getuid()
+        for pid_dir in proc.iterdir():
+            if not pid_dir.name.isdigit():
+                continue
+            try:
+                if pid_dir.stat().st_uid != current_uid:
+                    continue
+            except OSError:
+                continue
+            if self.process_matches_resolve(pid_dir):
+                return True
+
+        return False
 
     def watcher_is_running(self):
         if self.watcher_process and self.watcher_process.poll() is None:
@@ -667,6 +698,9 @@ Name[en_US]=DaVinci Resolve
             self.error("Missing watcher", f"Could not find:\n{watcher}")
             return
 
+        if not self.resolve_is_running():
+            return
+
         if self.watcher_is_running():
             return
 
@@ -704,6 +738,7 @@ Name[en_US]=DaVinci Resolve
             self.error("Could not stop watcher", str(exc))
             return
 
+        self.watcher_process = None
         self.notify("Resolve AAC Tools", "Watcher stop requested.")
         self.update_status()
 
@@ -1148,11 +1183,17 @@ Name[en_US]=DaVinci Resolve
 
         resolve_running = self.resolve_is_running()
         if resolve_running:
-            self.start_watcher_for_manual_resolve()
-        elif self.manual_resolve_was_running and self.watcher_process:
-            self.stop_watcher()
+            if not self.manual_resolve_was_running:
+                self.start_watcher_for_manual_resolve()
+            self.manual_resolve_was_running = True
+            return
 
-        self.manual_resolve_was_running = resolve_running
+        if self.manual_resolve_was_running and self.watcher_process:
+            if self.watcher_process.poll() is None:
+                self.stop_watcher()
+            self.watcher_process = None
+
+        self.manual_resolve_was_running = False
 
     def on_activated(self, reason):
         if reason == QSystemTrayIcon.Trigger:

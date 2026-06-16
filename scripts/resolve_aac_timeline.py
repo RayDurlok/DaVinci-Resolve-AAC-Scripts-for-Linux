@@ -24,7 +24,7 @@ DEFAULT_TRACK_NAME = "AAC PCM"
 
 
 def log(message):
-    with LOG_PATH.open("a") as handle:
+    with LOG_PATH.open("a", encoding="utf-8", errors="replace") as handle:
         handle.write(message + "\n")
 
 
