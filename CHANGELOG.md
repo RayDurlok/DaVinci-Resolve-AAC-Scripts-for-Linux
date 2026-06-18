@@ -6,6 +6,8 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.9`).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-06-18
+
 ### Fixed
 - Tray no longer starts the MediaPool watcher from loose process-name matches
   when `Watch manual Resolve starts` is enabled. Resolve detection now checks
