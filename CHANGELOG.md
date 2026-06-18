@@ -6,6 +6,13 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.9`).
 
 ## [Unreleased]
 
+### Fixed
+- Tray no longer starts the MediaPool watcher from loose process-name matches
+  when `Watch manual Resolve starts` is enabled. Resolve detection now checks
+  real `/proc` process information and only starts the watcher on an actual
+  Resolve process transition.
+- Timeline watcher logging now handles non-ASCII file names safely.
+
 ## [0.1.9] - 2026-06-10
 
 ### Added

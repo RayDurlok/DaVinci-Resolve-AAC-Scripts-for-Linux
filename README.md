@@ -66,7 +66,9 @@ Tray basics:
 
 - Left-click the tray icon to start Resolve with AAC watching.
 - Right-click the tray icon to change settings.
-- Enable `Watch manual Resolve starts` to start the watcher when Resolve is opened normally.
+- Enable `Watch manual Resolve starts` to start the watcher when Resolve is
+  opened normally. The tray checks for real Resolve processes about every 10
+  seconds.
 - Fresh installs leave `Start tray at login` off. Enable it only if you want the tray icon available after login.
 - For AAC exports on **Resolve 21**: enable `Remux all exports in webfriendly AAC` (off by default). It watches your render outputs and converts FLAC, PCM, and broken AAC audio to browser-friendly AAC-LC in place, with a desktop notification when done.
 - On **Resolve 20** only: `AAC export plugin: Install` adds AAC as a native export option (Toxblh plugin). It does not work on Resolve 21.
@@ -143,6 +145,11 @@ resolve-aac-start
 
 When Resolve is started through the tray or `resolve-aac-start`, closing Resolve
 also stops the MediaPool watcher. The tray icon stays available.
+
+If `Watch manual Resolve starts` is enabled, the tray also starts the MediaPool
+watcher when you open Resolve from the normal desktop launcher. It uses strict
+process detection, so wrappers or diagnostic commands should not start the
+watcher by accident.
 
 The optional AAC export plugin (Toxblh's `davinci-linux-aac-codec`) is separate
 from the watcher and **only works on DaVinci Resolve 20**. It installs once into
