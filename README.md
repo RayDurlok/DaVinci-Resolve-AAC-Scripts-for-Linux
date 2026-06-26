@@ -181,9 +181,8 @@ with a native "Save as" dialog: the watcher detects that window, closes it (by
 sending it `WM_DELETE_WINDOW` directly so it works regardless of focus), opens
 the native picker, and writes the chosen folder and name into the render
 `Location` / `Custom Name` through the scripting API. That intercept runs only
-while the MediaPool watcher runs. The `Set render location...` action opens the
-same picker on demand. Turning the toggle off removes the plugin again (restart
-Resolve to revert). Requires `python3-gobject` (gi) and `kdialog`, which the
+while the MediaPool watcher runs. Turning the toggle off removes the plugin again
+(restart Resolve to revert). Requires `python3-gobject` (gi) and `kdialog`, which the
 installer adds; the focus-independent close uses `python3-xlib` when present and
 otherwise falls back to sending Escape via ydotool.
 

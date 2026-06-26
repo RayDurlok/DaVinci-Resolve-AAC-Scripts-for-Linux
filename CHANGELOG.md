@@ -6,6 +6,15 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.9`).
 
 ## [Unreleased]
 
+### Changed
+- Tray: the AAC export plugin entry is now labelled "(Resolve 20 only)".
+- Tray: renamed the `Native file dialogs` toggle to `Native KDE file dialogs`.
+
+### Removed
+- Tray menu entry `Set render location...`. The native render-location picker is
+  still used automatically by the `Native KDE file dialogs` intercept; only the
+  redundant on-demand menu action was dropped (`set_render_location.py` stays).
+
 ## [0.1.10] - 2026-06-18
 
 ### Fixed

@@ -211,8 +211,10 @@ class ResolveAacTray(QObject):
         self.remux_exports_action.toggled.connect(self.set_remux_exports)
         self.menu.addAction(self.remux_exports_action)
 
-        self.export_plugin_action = QAction("Install AAC export plugin")
-        self.export_plugin_action.setToolTip("Install once; status changes to installed when the export plugin is present.")
+        self.export_plugin_action = QAction("Install AAC export plugin (Resolve 20 only)")
+        self.export_plugin_action.setToolTip(
+            "Install once for Resolve 20 only; status changes to installed when the export plugin is present."
+        )
         self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
         self.menu.addAction(self.export_plugin_action)
 
@@ -233,15 +235,7 @@ class ResolveAacTray(QObject):
         self.open_cache_action.triggered.connect(lambda: self.open_path(Path(self.config["cache_dir"])))
         self.menu.addAction(self.open_cache_action)
 
-        self.render_location_action = QAction("Set render location...")
-        self.render_location_action.setToolTip(
-            "Open a native KDE folder picker and write the choice into the Deliver 'Location' field "
-            "(replaces Resolve's non-native Browse dialog). Resolve must be running."
-        )
-        self.render_location_action.triggered.connect(self.set_render_location)
-        self.menu.addAction(self.render_location_action)
-
-        self.intercept_browse_action = QAction("Native file dialogs")
+        self.intercept_browse_action = QAction("Native KDE file dialogs")
         self.intercept_browse_action.setCheckable(True)
         self.intercept_browse_action.setChecked(bool(self.config["intercept_deliver_browse"]))
         self.intercept_browse_action.setToolTip(
@@ -819,24 +813,8 @@ Name[en_US]=DaVinci Resolve
             self.stop_export_watcher()
         self.update_status()
 
-    def render_location_script(self):
-        return SCRIPT_DIR / "set_render_location.py"
-
     def intercept_watcher_path(self):
         return SCRIPT_DIR / "resolve_render_location_watch.py"
-
-    def set_render_location(self):
-        script = self.render_location_script()
-        if not script.exists():
-            self.error("Missing script", f"Could not find:\n{script}")
-            return
-        if not self.resolve_is_running():
-            self.notify("Resolve AAC Tools", "Resolve is not running.")
-            return
-        try:
-            subprocess.Popen([sys.executable, str(script)], env=self.current_env())
-        except Exception as exc:
-            self.error("Could not open render-location picker", str(exc))
 
     def find_system_portal_plugin(self):
         """Locate the system Qt5 xdg-desktop-portal platformtheme plugin (distro-agnostic)."""
@@ -1124,12 +1102,14 @@ Name[en_US]=DaVinci Resolve
         installed = self.export_plugin_installed()
         self.export_plugin_action.blockSignals(True)
         self.export_plugin_action.setText(
-            "AAC export plugin: ✓ Installed" if installed else "AAC export plugin: Install"
+            "AAC export plugin (Resolve 20 only): ✓ Installed"
+            if installed
+            else "AAC export plugin (Resolve 20 only): Install"
         )
         self.export_plugin_action.setToolTip(
-            "AAC export plugin is installed. Click to uninstall it from Resolve's IOPlugins folder."
+            "AAC export plugin is installed for Resolve 20. Click to uninstall it from Resolve's IOPlugins folder."
             if installed
-            else "Download and install Toxblh's AAC export plugin into Resolve's IOPlugins folder."
+            else "Download and install Toxblh's AAC export plugin into Resolve's IOPlugins folder. Resolve 20 only."
         )
         self.export_plugin_action.blockSignals(False)
 
