@@ -2,13 +2,33 @@
 
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/). Releases before this
-file are tracked through git tags and GitHub releases (latest: `v0.1.9`).
+file are tracked through git tags and GitHub releases (latest: `v0.1.10`).
 
 ## [Unreleased]
 
 ### Changed
+- Tray: reorganized the menu into clearer groups for launch actions, toggles,
+  cache settings, tools, logs, and quit.
 - Tray: the AAC export plugin entry is now labelled "(Resolve 20 only)".
 - Tray: renamed the `Native file dialogs` toggle to `Native KDE file dialogs`.
+- Tray: renamed `Use cache folder` to `Use single cache folder`.
+- Resolve launch wrappers now preload the system GLib stack when Resolve's
+  bundled GLib is missing `g_once_init_leave_pointer` on Fedora-like systems.
+
+### Added
+- Tray toggle `Mute notifications`.
+- Tray action `Install Resolve ZIP from Downloads` plus the
+  `resolve-update-from-downloads` command and desktop entry.
+- Tray startup now sets Resolve's `Show Stacked Timelines` user preference on
+  when the preference file is available.
+
+### Fixed
+- Export remux verification accepts valid AAC-LC files when `ffprobe` omits the
+  human-readable `profile=LC` field but reports `mp4a.40.2` and AAC extradata.
+- Export remux detection now ignores read-only Resolve file handles, so imported
+  source clips are not mistaken for render outputs.
+- Export remux watcher marks failed detected outputs as seen to avoid retry loops
+  until the file changes again.
 
 ### Removed
 - Tray menu entry `Set render location...`. The native render-location picker is

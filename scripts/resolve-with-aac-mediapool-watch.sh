@@ -38,6 +38,29 @@ if [[ -n "${RESOLVE_AAC_CACHE_DIR:-}" ]]; then
   WATCH_ARGS+=(--cache-dir "$RESOLVE_AAC_CACHE_DIR")
 fi
 
+preload_system_glib_if_needed() {
+  local resolve_glib="/opt/resolve/libs/libglib-2.0.so.0"
+  local system_glib="/lib64/libglib-2.0.so.0"
+  local preload_libs=()
+
+  if [[ -r "$resolve_glib" && -r "$system_glib" ]] &&
+     ! readelf -Ws "$resolve_glib" 2>/dev/null | grep -q 'g_once_init_leave_pointer'; then
+    for lib in \
+      /lib64/libglib-2.0.so.0 \
+      /lib64/libgobject-2.0.so.0 \
+      /lib64/libgio-2.0.so.0 \
+      /lib64/libgmodule-2.0.so.0; do
+      [[ -r "$lib" ]] && preload_libs+=("$lib")
+    done
+  fi
+
+  if [[ "${#preload_libs[@]}" -gt 0 ]]; then
+    export LD_PRELOAD="${preload_libs[*]}${LD_PRELOAD:+ $LD_PRELOAD}"
+  fi
+}
+
+preload_system_glib_if_needed
+
 # Native KDE-Dateidialoge statt Resolves altem Qt-Widget-Dialog (siehe resolve-with-fonts.sh).
 RESOLVE_QT_PLUGINS="$(cd "$APP_DIR/.." && pwd)/qt-plugins"
 if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then

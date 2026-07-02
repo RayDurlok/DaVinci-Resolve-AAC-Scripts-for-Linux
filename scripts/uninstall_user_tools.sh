@@ -47,6 +47,7 @@ rm -f \
   "$BIN_DIR/resolve-aac-export-watch" \
   "$BIN_DIR/resolve-with-aac-mediapool-watch" \
   "$BIN_DIR/resolve-with-fonts" \
+  "$BIN_DIR/resolve-update-from-downloads" \
   "$BIN_DIR/resolve-aac-tray" \
   "$BIN_DIR/resolve-aac-start" \
   "$APPS_DIR/resolve-aac-importer.desktop" \
@@ -55,6 +56,7 @@ rm -f \
   "$APPS_DIR/resolve-with-aac-mediapool-cache.desktop" \
   "$APPS_DIR/resolve-aac-tray.desktop" \
   "$APPS_DIR/resolve-aac-start.desktop" \
+  "$APPS_DIR/resolve-update-from-downloads.desktop" \
   "$RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py" \
   "$RESOLVE_SCRIPTS_DIR/Resolve AAC Timeline Watch.py" \
   "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py" \

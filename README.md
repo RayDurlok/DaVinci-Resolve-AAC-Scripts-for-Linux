@@ -77,7 +77,7 @@ Tray basics:
 
 The tray can store generated MOV/PCM files either in a cache folder or beside the
 source media in `<source-folder>/aac_remux/`. Fresh installs use source folders
-by default. If you enable `Use cache folder`, the default cache path is
+by default. If you enable `Use single cache folder`, the default cache path is
 `~/.cache/resolve-aac-remux`.
 
 ## Install Notes
@@ -210,6 +210,7 @@ resolve-aac-import
 resolve-aac-watch
 resolve-aac-export-watch
 resolve-with-fonts
+resolve-update-from-downloads
 ```
 
 Start or stop only the MediaPool watcher:
@@ -218,6 +219,22 @@ Start or stop only the MediaPool watcher:
 resolve-aac-mediapool-watch
 resolve-aac-mediapool-watch-stop
 ```
+
+Install the newest Resolve Linux ZIP from `~/Downloads`:
+
+```bash
+resolve-update-from-downloads
+```
+
+This finds the newest `DaVinci_Resolve*_Linux.zip`, extracts it to
+`/tmp/resolve-<version>`, and runs Blackmagic's official installer as
+`sudo env SKIP_PACKAGE_CHECK=1 ... -i`. Pass
+`--zip /path/to/file.zip` to install a specific download. After a successful
+install it refreshes the local `resolve-with-fonts` launcher and Resolve
+start-menu override, including the Fedora GLib preload fix needed by some
+Resolve releases.
+
+The installer also adds a start-menu entry named `DaVinci Resolve Updater`.
 
 Fix timeline clips:
 

@@ -182,6 +182,12 @@ exec bash "$APP_DIR/resolve-with-fonts.sh" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-with-fonts"
 
+cat > "$BIN_DIR/resolve-update-from-downloads" <<EOF
+#!/usr/bin/env bash
+exec bash "$APP_DIR/resolve_update_from_downloads.sh" "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-update-from-downloads"
+
 cat > "$BIN_DIR/resolve-aac-tray" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -287,6 +293,18 @@ Terminal=false
 Categories=AudioVideo;Video;
 EOF
 
+cat > "$APPS_DIR/resolve-update-from-downloads.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=DaVinci Resolve Updater
+Comment=Find the newest DaVinci Resolve Linux ZIP in Downloads and run the official installer
+Exec=$APP_DIR/resolve_update_from_downloads.sh
+Icon=DaVinci-Resolve
+Terminal=true
+Categories=Utility;
+Keywords=DaVinci;Resolve;Update;Installer;Blackmagic;
+EOF
+
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
 fi
@@ -302,6 +320,7 @@ echo "  $BIN_DIR/resolve-aac-mediapool-watch"
 echo "  $BIN_DIR/resolve-aac-mediapool-watch-stop"
 echo "  $BIN_DIR/resolve-with-aac-mediapool-watch"
 echo "  $BIN_DIR/resolve-with-fonts"
+echo "  $BIN_DIR/resolve-update-from-downloads"
 echo "  $BIN_DIR/resolve-aac-tray"
 echo "  $BIN_DIR/resolve-aac-start"
 echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"
@@ -315,6 +334,7 @@ echo "  $APPS_DIR/resolve-with-aac-mediapool-watch.desktop"
 echo "  $APPS_DIR/resolve-with-aac-mediapool-cache.desktop"
 echo "  $APPS_DIR/resolve-aac-tray.desktop"
 echo "  $APPS_DIR/resolve-aac-start.desktop"
+echo "  $APPS_DIR/resolve-update-from-downloads.desktop"
 echo
 echo "Inbox:  $HOME/Resolve AAC Inbox"
 echo "Output: $HOME/Resolve AAC Imports"

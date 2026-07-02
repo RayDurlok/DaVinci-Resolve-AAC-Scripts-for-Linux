@@ -53,6 +53,8 @@ RESOLVE_DESKTOP_OVERRIDE_PATH = (
     Path.home() / ".local" / "share" / "applications" / "com.blackmagicdesign.resolve.desktop"
 )
 FUSION_PREFS_PATH = Path.home() / ".local" / "share" / "DaVinciResolve" / "Fusion" / "Profiles" / "Default" / "Fusion.prefs"
+RESOLVE_USER_PREFS_PATH = Path.home() / ".local" / "share" / "DaVinciResolve" / "configs" / "config.user.xml"
+STACKED_TIMELINES_PREF = "DefaultIsShowStackedTimelines"
 MANUAL_RESOLVE_CHECK_MS = 10000
 EXPORT_PLUGIN_VERSION = "v1.0.1"
 EXPORT_PLUGIN_URL = (
@@ -78,6 +80,7 @@ def load_config():
         "watch_manual_resolve": True,
         "remux_exports": False,
         "intercept_deliver_browse": False,
+        "mute_notifications": False,
     }
     try:
         data = json.loads(CONFIG_PATH.read_text())
@@ -93,6 +96,32 @@ def load_config():
 def save_config(config):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n")
+
+
+def ensure_stacked_timelines_default():
+    try:
+        text = RESOLVE_USER_PREFS_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+
+    tag_start = f"<{STACKED_TIMELINES_PREF}>"
+    tag_end = f"</{STACKED_TIMELINES_PREF}>"
+    desired = f"{tag_start}true{tag_end}"
+
+    if desired in text:
+        return False
+
+    if tag_start in text and tag_end in text:
+        before, rest = text.split(tag_start, 1)
+        _current_value, after = rest.split(tag_end, 1)
+        updated = before + desired + after
+    elif "</SM_UserPrefs>" in text:
+        updated = text.replace("</SM_UserPrefs>", f" {desired}\n</SM_UserPrefs>", 1)
+    else:
+        return False
+
+    RESOLVE_USER_PREFS_PATH.write_text(updated, encoding="utf-8")
+    return True
 
 
 def tray_command():
@@ -144,6 +173,10 @@ class ResolveAacTray(QObject):
         super().__init__()
         self.app.setQuitOnLastWindowClosed(False)
         self.config = load_config()
+        try:
+            ensure_stacked_timelines_default()
+        except OSError:
+            pass
         self.process = None
         self.watcher_process = None
         self.export_watcher_process = None
@@ -180,13 +213,6 @@ class ResolveAacTray(QObject):
 
         self.menu.addSeparator()
 
-        self.cache_action = QAction("Use cache folder")
-        self.cache_action.setCheckable(True)
-        self.cache_action.setChecked(bool(self.config["use_cache"]))
-        self.cache_action.setToolTip("Store imported AAC remux files in one cache folder instead of beside each source clip.")
-        self.cache_action.toggled.connect(self.set_use_cache)
-        self.menu.addAction(self.cache_action)
-
         self.autostart_action = QAction("Start tray at login")
         self.autostart_action.setCheckable(True)
         self.autostart_action.setChecked(autostart_enabled())
@@ -211,6 +237,47 @@ class ResolveAacTray(QObject):
         self.remux_exports_action.toggled.connect(self.set_remux_exports)
         self.menu.addAction(self.remux_exports_action)
 
+        self.intercept_browse_action = QAction("Native KDE file dialogs")
+        self.intercept_browse_action.setCheckable(True)
+        self.intercept_browse_action.setChecked(bool(self.config["intercept_deliver_browse"]))
+        self.intercept_browse_action.setToolTip(
+            "Off by default. On: installs the portal plugin so Resolve's dialogs (Export Still, "
+            "Import, ...) go native after a restart, and auto-replaces the Deliver 'Browse' browser "
+            "(while the MediaPool watcher runs). Off: removes the plugin again."
+        )
+        self.intercept_browse_action.toggled.connect(self.set_intercept_deliver_browse)
+        self.menu.addAction(self.intercept_browse_action)
+
+        self.mute_notifications_action = QAction("Mute notifications")
+        self.mute_notifications_action.setCheckable(True)
+        self.mute_notifications_action.setChecked(bool(self.config["mute_notifications"]))
+        self.mute_notifications_action.setToolTip(
+            "Hide tray popup notifications. Error dialogs still appear."
+        )
+        self.mute_notifications_action.toggled.connect(self.set_mute_notifications)
+        self.menu.addAction(self.mute_notifications_action)
+
+        self.menu.addSeparator()
+
+        self.cache_action = QAction("Use single cache folder")
+        self.cache_action.setCheckable(True)
+        self.cache_action.setChecked(bool(self.config["use_cache"]))
+        self.cache_action.setToolTip("Store imported AAC remux files in one cache folder instead of beside each source clip.")
+        self.cache_action.toggled.connect(self.set_use_cache)
+        self.menu.addAction(self.cache_action)
+
+        self.choose_cache_action = QAction("Choose cache folder...")
+        self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
+        self.choose_cache_action.triggered.connect(self.choose_cache_folder)
+        self.menu.addAction(self.choose_cache_action)
+
+        self.open_cache_action = QAction("Open cache folder")
+        self.open_cache_action.setToolTip("Open the currently selected cache folder in the file manager.")
+        self.open_cache_action.triggered.connect(lambda: self.open_path(Path(self.config["cache_dir"])))
+        self.menu.addAction(self.open_cache_action)
+
+        self.menu.addSeparator()
+
         self.export_plugin_action = QAction("Install AAC export plugin (Resolve 20 only)")
         self.export_plugin_action.setToolTip(
             "Install once for Resolve 20 only; status changes to installed when the export plugin is present."
@@ -225,26 +292,14 @@ class ResolveAacTray(QObject):
         self.resolve_font_action.triggered.connect(self.handle_resolve_font_action)
         self.menu.addAction(self.resolve_font_action)
 
-        self.choose_cache_action = QAction("Choose cache folder...")
-        self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
-        self.choose_cache_action.triggered.connect(self.choose_cache_folder)
-        self.menu.addAction(self.choose_cache_action)
-
-        self.open_cache_action = QAction("Open cache folder")
-        self.open_cache_action.setToolTip("Open the currently selected cache folder in the file manager.")
-        self.open_cache_action.triggered.connect(lambda: self.open_path(Path(self.config["cache_dir"])))
-        self.menu.addAction(self.open_cache_action)
-
-        self.intercept_browse_action = QAction("Native KDE file dialogs")
-        self.intercept_browse_action.setCheckable(True)
-        self.intercept_browse_action.setChecked(bool(self.config["intercept_deliver_browse"]))
-        self.intercept_browse_action.setToolTip(
-            "Off by default. On: installs the portal plugin so Resolve's dialogs (Export Still, "
-            "Import, ...) go native after a restart, and auto-replaces the Deliver 'Browse' browser "
-            "(while the MediaPool watcher runs). Off: removes the plugin again."
+        self.resolve_update_action = QAction("Install Resolve ZIP from Downloads")
+        self.resolve_update_action.setToolTip(
+            "Find the newest Resolve Linux ZIP in Downloads and run the official installer in a terminal."
         )
-        self.intercept_browse_action.toggled.connect(self.set_intercept_deliver_browse)
-        self.menu.addAction(self.intercept_browse_action)
+        self.resolve_update_action.triggered.connect(self.launch_resolve_updater)
+        self.menu.addAction(self.resolve_update_action)
+
+        self.menu.addSeparator()
 
         self.open_log_action = QAction("Open launcher log")
         self.open_log_action.setToolTip("Open the Resolve AAC launcher log for troubleshooting.")
@@ -283,6 +338,8 @@ class ResolveAacTray(QObject):
             QTimer.singleShot(250, self.start_resolve)
 
     def notify(self, title, message):
+        if self.config["mute_notifications"]:
+            return
         self.tray.showMessage(title, message, QSystemTrayIcon.Information, 4000)
 
     def error(self, title, message):
@@ -299,6 +356,9 @@ class ResolveAacTray(QObject):
 
     def export_watcher_path(self):
         return SCRIPT_DIR / "resolve_aac_export_watch.py"
+
+    def resolve_updater_path(self):
+        return SCRIPT_DIR / "resolve_update_from_downloads.sh"
 
     def fusion_font_paths(self):
         paths = [Path("/usr/share/fonts"), Path("/usr/local/share/fonts")]
@@ -526,6 +586,29 @@ if [[ -d "$HOME/.fonts" ]]; then
 fi
 
 export FUSION_FONTS="${FUSION_FONTS:+$FUSION_FONTS;}$FONT_DIRS"
+
+preload_system_glib_if_needed() {
+  local resolve_glib="/opt/resolve/libs/libglib-2.0.so.0"
+  local system_glib="/lib64/libglib-2.0.so.0"
+  local preload_libs=()
+
+  if [[ -r "$resolve_glib" && -r "$system_glib" ]] &&
+     ! readelf -Ws "$resolve_glib" 2>/dev/null | grep -q 'g_once_init_leave_pointer'; then
+    for lib in \
+      /lib64/libglib-2.0.so.0 \
+      /lib64/libgobject-2.0.so.0 \
+      /lib64/libgio-2.0.so.0 \
+      /lib64/libgmodule-2.0.so.0; do
+      [[ -r "$lib" ]] && preload_libs+=("$lib")
+    done
+  fi
+
+  if [[ "${#preload_libs[@]}" -gt 0 ]]; then
+    export LD_PRELOAD="${preload_libs[*]}${LD_PRELOAD:+ $LD_PRELOAD}"
+  fi
+}
+
+preload_system_glib_if_needed
 
 exec /opt/resolve/bin/resolve "$@"
 """
@@ -813,6 +896,11 @@ Name[en_US]=DaVinci Resolve
             self.stop_export_watcher()
         self.update_status()
 
+    def set_mute_notifications(self, enabled):
+        self.config["mute_notifications"] = bool(enabled)
+        save_config(self.config)
+        self.update_status()
+
     def intercept_watcher_path(self):
         return SCRIPT_DIR / "resolve_render_location_watch.py"
 
@@ -1032,6 +1120,35 @@ Name[en_US]=DaVinci Resolve
 
         self.update_resolve_font_action()
 
+    def launch_resolve_updater(self):
+        updater = self.resolve_updater_path()
+        if not updater.exists():
+            self.error("Missing Resolve updater", f"Could not find:\n{updater}")
+            return
+
+        terminals = [
+            ("konsole", ["konsole", "--hold", "-e", str(updater)]),
+            ("xterm", ["xterm", "-hold", "-e", str(updater)]),
+            ("gnome-terminal", ["gnome-terminal", "--", str(updater)]),
+            ("xfce4-terminal", ["xfce4-terminal", "--hold", "-e", str(updater)]),
+            ("x-terminal-emulator", ["x-terminal-emulator", "-e", str(updater)]),
+        ]
+
+        for executable, command in terminals:
+            if shutil.which(executable):
+                try:
+                    subprocess.Popen(command, env=self.current_env())
+                except Exception as exc:
+                    self.error("Could not start Resolve updater", str(exc))
+                    return
+                self.notify("Resolve AAC Tools", "Resolve updater opened in a terminal.")
+                return
+
+        self.error(
+            "Could not start Resolve updater",
+            "No supported terminal emulator was found. Run resolve-update-from-downloads from a terminal instead.",
+        )
+
     def set_autostart(self, enabled):
         try:
             if enabled:
@@ -1180,6 +1297,7 @@ Name[en_US]=DaVinci Resolve
             self.start_resolve()
 
     def quit(self):
+        self.stop_export_watcher(notify=False)
         if self.export_watcher_log_file:
             self.export_watcher_log_file.close()
         # Browse-Intercept-Watcher nicht verwaist weiterlaufen lassen

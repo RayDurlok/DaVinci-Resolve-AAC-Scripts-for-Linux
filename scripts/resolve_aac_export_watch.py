@@ -109,13 +109,30 @@ def is_intermediate_path(path):
     return any(part in INTERMEDIATE_DIR_NAMES for part in path.parts)
 
 
+def fd_is_open_for_write(fd):
+    try:
+        text = (fd.parent.parent / "fdinfo" / fd.name).read_text()
+    except OSError:
+        return False
+
+    for line in text.splitlines():
+        if not line.startswith("flags:"):
+            continue
+        try:
+            flags = int(line.split(":", 1)[1].strip(), 8)
+        except ValueError:
+            return False
+        # Linux access mode bits: 0 = read-only, 1 = write-only, 2 = read/write.
+        return bool(flags & 0o3)
+    return False
+
+
 def iter_resolve_output_paths():
     """Yield media files Resolve currently has open (render outputs).
 
-    Resolve keeps a render output open (for writing during the render, then a
-    lingering handle afterwards), so detecting any open media handle reliably
-    catches it. Intermediates and source clips are filtered out later by path and
-    by modification time, not by the open mode (which misses short renders).
+    Resolve also opens source clips for reading while importing or playing back.
+    Only write-capable handles are treated as render outputs so imported source
+    clips are not modified by the export watcher.
     """
     for pid in resolve_pids():
         fd_dir = Path("/proc") / pid / "fd"
@@ -129,6 +146,8 @@ def iter_resolve_output_paths():
             except OSError:
                 continue
             if " (deleted)" in str(target):
+                continue
+            if not fd_is_open_for_write(fd):
                 continue
             if target.suffix.lower() not in MEDIA_EXTS:
                 continue
@@ -217,11 +236,13 @@ def needs_conversion(path):
 
 def verify_fixed(path):
     audio = ffprobe_audio(path)
+    profile = str(audio.get("profile", ""))
+    mime = str(audio.get("mime_codec_string", ""))
     return (
         audio.get("codec_name") == "aac"
         and audio.get("codec_tag_string") == "mp4a"
-        and str(audio.get("profile")) == "LC"
-        and str(audio.get("mime_codec_string")) == "mp4a.40.2"
+        and (profile in ("", "LC") or mime == "mp4a.40.2")
+        and mime in ("", "mp4a.40.2")
         and int(audio.get("extradata_size", 0)) > 0
     )
 
@@ -441,6 +462,13 @@ def scan_detected_resolve_outputs_once(args, state, runtime):
                 closed.pop(raw_path, None)
         except Exception as exc:
             log(f"error processing detected Resolve output {path}: {exc}")
+            try:
+                state[str(path)] = fingerprint(path)
+            except OSError:
+                pass
+            active.pop(raw_path, None)
+            closed.pop(raw_path, None)
+            changed += 1
 
     return changed
 
