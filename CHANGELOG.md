@@ -21,6 +21,12 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.10`).
   `resolve-update-from-downloads` command and desktop entry.
 - Tray startup now sets Resolve's `Show Stacked Timelines` user preference on
   when the preference file is available.
+- `Native KDE file dialogs` now also replaces Resolve's MediaPool relink
+  `Select Source Folder` browser with the native KDE folder picker for a single
+  clip or the current bin (relink via the scripting API). Multiple selected bins,
+  which the scripting API cannot enumerate, keep Resolve's own dialog — the
+  watcher checks the API before closing Resolve's dialog and leaves it open when
+  it cannot enumerate clips.
 
 ### Fixed
 - Export remux verification accepts valid AAC-LC files when `ffprobe` omits the

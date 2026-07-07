@@ -62,6 +62,20 @@ returns your terminal immediately. Its startup log is written to
 
 Then work in Resolve as usual.
 
+## Update
+
+Download the latest release again and run the installer again:
+
+```bash
+curl -L https://github.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/releases/latest/download/resolve-aac-tools-linux.tar.gz -o resolve-aac-tools-linux.tar.gz
+tar xzf resolve-aac-tools-linux.tar.gz
+cd resolve-aac-tools
+./install_user_tools.sh
+```
+
+This updates the installed scripts and launchers. Your tray settings and cache
+folder are kept.
+
 Tray basics:
 
 - Left-click the tray icon to start Resolve with AAC watching.
@@ -172,7 +186,7 @@ Resolve starts with additional Fusion font paths such as `/usr/local/share/fonts
 `~/.local/share/fonts`, and `~/.fonts`. Restart Resolve after applying or
 uninstalling it.
 
-The optional native file dialogs toggle (`Native file dialogs`) is off by default.
+The optional native file dialogs toggle (`Native KDE file dialogs`) is off by default.
 When enabled it installs a Qt `platformthemes` plugin (detected on your system,
 distro-agnostic) so Resolve routes its standard file dialogs — Export Still,
 Import, Export Project — through the desktop's native portal/KDE dialog after a
@@ -180,8 +194,13 @@ restart. It also replaces Resolve's non-native Deliver `File Destination` browse
 with a native "Save as" dialog: the watcher detects that window, closes it (by
 sending it `WM_DELETE_WINDOW` directly so it works regardless of focus), opens
 the native picker, and writes the chosen folder and name into the render
-`Location` / `Custom Name` through the scripting API. That intercept runs only
-while the MediaPool watcher runs. Turning the toggle off removes the plugin again
+`Location` / `Custom Name` through the scripting API. It likewise replaces
+Resolve's MediaPool relink `Select Source Folder` browser: for a single clip or
+the current bin it opens the native folder picker and relinks through the
+scripting API; for multiple selected bins — which the scripting API cannot
+enumerate — it leaves Resolve's own dialog open so Resolve does the relink. Both
+intercepts run only while the MediaPool watcher runs. Turning the toggle off
+removes the plugin again
 (restart Resolve to revert). Requires `python3-gobject` (gi) and `kdialog`, which the
 installer adds; the focus-independent close uses `python3-xlib` when present and
 otherwise falls back to sending Escape via ydotool.
