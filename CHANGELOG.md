@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/). Releases before this
-file are tracked through git tags and GitHub releases (latest: `v0.1.10`).
+file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
+
+## [0.1.11] - 2026-07-07
 
 ### Changed
 - Tray: reorganized the menu into clearer groups for launch actions, toggles,
