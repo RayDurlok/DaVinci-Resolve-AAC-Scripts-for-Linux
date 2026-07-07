@@ -14,6 +14,9 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.10`).
 - Tray: renamed `Use cache folder` to `Use single cache folder`.
 - Resolve launch wrappers now preload the system GLib stack when Resolve's
   bundled GLib is missing `g_once_init_leave_pointer` on Fedora-like systems.
+- Installer now starts the tray at the end of a fresh install, and restarts a
+  running tray (and its watchers) when re-run, so updates take effect without a
+  manual restart.
 
 ### Added
 - Tray toggle `Mute notifications`.

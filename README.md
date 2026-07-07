@@ -74,7 +74,8 @@ cd resolve-aac-tools
 ```
 
 This updates the installed scripts and launchers. Your tray settings and cache
-folder are kept.
+folder are kept. If the tray is already running, the installer restarts it (and
+its watchers) so the update takes effect right away.
 
 Tray basics:
 

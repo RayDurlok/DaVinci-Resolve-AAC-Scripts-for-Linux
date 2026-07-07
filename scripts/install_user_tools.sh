@@ -338,3 +338,24 @@ echo "  $APPS_DIR/resolve-update-from-downloads.desktop"
 echo
 echo "Inbox:  $HOME/Resolve AAC Inbox"
 echo "Output: $HOME/Resolve AAC Imports"
+
+# Start the tray so the freshly installed tools are ready to use. If one is
+# already running (i.e. this is an update), stop it and its watchers first so the
+# new code is loaded before it starts again.
+if pgrep -u "$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
+  echo
+  echo "Restarting the running Resolve AAC tray to apply the update..."
+  pkill -u "$(id -u)" -f 'python.*resolve_aac_tray.py' 2>/dev/null || true
+  for _watcher in resolve_aac_export_watch resolve_aac_mediapool_watch resolve_render_location_watch; do
+    pkill -u "$(id -u)" -f "python.*${_watcher}.py" 2>/dev/null || true
+  done
+  for _ in 1 2 3 4 5; do
+    pgrep -u "$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1 || break
+    sleep 1
+  done
+else
+  echo
+  echo "Starting the Resolve AAC tray..."
+fi
+"$BIN_DIR/resolve-aac-tray" >/dev/null 2>&1 || true
+echo "Tray is running (resolve-aac-tray)."
