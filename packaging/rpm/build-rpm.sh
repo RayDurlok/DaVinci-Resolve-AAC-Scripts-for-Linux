@@ -37,6 +37,7 @@ tar -C "$STAGE" -czf "$RPMTOP/SOURCES/$SRCNAME-$VERSION.tar.gz" "$SRCNAME-$VERSI
 
 echo ">> Staging spec + packaging sources"
 cp "$HERE"/*.metainfo.xml "$HERE"/*.desktop "$RPMTOP/SOURCES/"
+cp "$REPO/resolve-aac-tools-icon-512.png" "$RPMTOP/SOURCES/"
 cp "$HERE/$SRCNAME.spec" "$RPMTOP/SPECS/"
 
 # --nodeps: the BuildRequires (desktop-file-utils, libappstream-glib) are only

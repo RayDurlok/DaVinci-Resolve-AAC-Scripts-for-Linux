@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           resolve-aac-tools
-Version:        0.1.11
+Version:        0.1.12
 Release:        1%{?dist}
 Summary:        AAC audio remux tools and system tray for DaVinci Resolve on Linux
 
@@ -18,6 +18,7 @@ Source3:        resolve-aac-import.desktop
 Source4:        resolve-aac-start.desktop
 Source5:        resolve-update-from-downloads.desktop
 Source6:        resolve-aac-settings.desktop
+Source7:        resolve-aac-tools-icon-512.png
 
 BuildArch:      noarch
 
@@ -158,12 +159,28 @@ install -p -m0644 %{SOURCE6} %{buildroot}%{_datadir}/applications/resolve-aac-se
 install -d %{buildroot}%{_metainfodir}
 install -p -m0644 %{SOURCE1} %{buildroot}%{_metainfodir}/%{appid}.metainfo.xml
 
+# --- app icon -> hicolor icon theme (Discover tile, menus, tray) ---
+install -d %{buildroot}%{_datadir}/icons/hicolor/512x512/apps
+install -p -m0644 %{SOURCE7} %{buildroot}%{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
+
 %check
 # Guarded so a bare local rpmbuild without these tools still succeeds.
 command -v desktop-file-validate >/dev/null 2>&1 && \
   desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop || :
 command -v appstreamcli >/dev/null 2>&1 && \
   appstreamcli validate --no-net %{buildroot}%{_metainfodir}/%{appid}.metainfo.xml || :
+
+%post
+touch --no-create %{_datadir}/icons/hicolor &>/dev/null || :
+
+%postun
+if [ $1 -eq 0 ] ; then
+    touch --no-create %{_datadir}/icons/hicolor &>/dev/null
+    gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
+fi
+
+%posttrans
+gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %files
 %license LICENSE
@@ -189,7 +206,12 @@ command -v appstreamcli >/dev/null 2>&1 && \
 %{_datadir}/applications/resolve-update-from-downloads.desktop
 %{_datadir}/applications/resolve-aac-settings.desktop
 %{_metainfodir}/%{appid}.metainfo.xml
+%{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.12-1
+- Ship the app icon (Discover tile, menus, tray)
+- Modern setup/settings window; fix ProRes/.mov export remux
+
 * Tue Jul 07 2026 RayDurlok <noreply@example.com> - 0.1.11-1
 - Initial RPM packaging: system-wide install, CLI wrappers, tray, Discover metadata

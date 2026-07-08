@@ -3,6 +3,6 @@ Type=Application
 Name=DaVinci Resolve AAC
 Comment=Start DaVinci Resolve with the AAC MediaPool watcher and tray controls
 Exec=resolve-aac-start
-Icon=applications-multimedia
+Icon=io.github.raydurlok.ResolveAacTools
 Terminal=false
 Categories=AudioVideo;Video;
