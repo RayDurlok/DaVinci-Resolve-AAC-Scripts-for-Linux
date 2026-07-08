@@ -6,6 +6,13 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-09
+
+### Changed
+- Renamed the RPM package to `davinci-resolve-toolkit` so `dnf install` matches
+  the app name and Copr project. The `resolve-aac-*` commands and user config are
+  unchanged.
+
 ## [0.2.0] - 2026-07-09
 
 ### Added

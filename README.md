@@ -27,7 +27,7 @@ automatically. Video is copied, not re-encoded; your originals stay untouched.
 
 ```bash
 sudo dnf copr enable raydurlok/davinci-resolve-toolkit
-sudo dnf install resolve-aac-tools
+sudo dnf install davinci-resolve-toolkit
 ```
 
 Once the Copr repo is enabled it also appears as a searchable tile in Discover.

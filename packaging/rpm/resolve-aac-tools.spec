@@ -2,8 +2,8 @@
 %global srcname  resolve-aac-tools
 %global sharedir %{_datadir}/%{srcname}
 
-Name:           resolve-aac-tools
-Version:        0.2.0
+Name:           davinci-resolve-toolkit
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -211,6 +211,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.1-1
+- Rename the RPM package to davinci-resolve-toolkit so it matches the app name
+  and Copr project (install with: dnf install davinci-resolve-toolkit). The
+  resolve-aac-* commands and user config are unchanged.
+
 * Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.0-1
 - Available from Fedora Copr and as a Discover tile
 - Add a trademark notice (not affiliated with Blackmagic Design) to the README
