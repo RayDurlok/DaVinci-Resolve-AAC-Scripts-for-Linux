@@ -689,6 +689,15 @@ preload_system_glib_if_needed() {
 
 preload_system_glib_if_needed
 
+# Native KDE file dialogs (Export Still, Import, ...) when the "Native KDE file
+# dialogs" toggle installed the portal plugin symlink. Menu-launched Resolve uses
+# this wrapper, so the portal env has to be set here too.
+RESOLVE_QT_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/resolve-aac-tools/qt-plugins"
+if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
+  export QT_QPA_PLATFORMTHEME=xdgdesktopportal
+  export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+fi
+
 exec /opt/resolve/bin/resolve "$@"
 """
 
