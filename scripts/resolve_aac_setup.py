@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 
 try:
-    from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QSize, Qt, Signal
+    from PySide6.QtCore import Property, QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, Signal
     from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPixmap
     from PySide6.QtWidgets import (
         QAbstractButton,
@@ -205,6 +205,11 @@ def detect_resolve_info():
     return _RESOLVE_INFO_CACHE
 
 
+def reset_resolve_info_cache():
+    global _RESOLVE_INFO_CACHE
+    _RESOLVE_INFO_CACHE = None
+
+
 class ToggleSwitch(QAbstractButton):
     def __init__(self, checked=False, parent=None):
         super().__init__(parent)
@@ -327,6 +332,9 @@ class SetupWindow(QWidget):
         self.cfg = load_config()
         self.first_run = first_run
         self._resolve_detection_started = False
+        self._resolve_recheck_pending = False
+        self._recheck_in_flight = False
+        self._version_before_update = None
         self.resolve_info_ready.connect(self._apply_resolve_info)
         self.setWindowTitle("Resolve AAC Tools")
         _icon = app_icon()
@@ -456,6 +464,32 @@ class SetupWindow(QWidget):
             tray_helper().launch_resolve_updater()
         except Exception as exc:
             QMessageBox.warning(self, "Resolve AAC Tools", f"Could not launch the Resolve updater:\n{exc}")
+            return
+        # The installer runs in its own terminal, so we can't know when it finishes.
+        # Re-detect the version whenever this window is focused again until it changes.
+        self._version_before_update = detect_resolve_info()[0]
+        self._resolve_recheck_pending = True
+        reset_resolve_info_cache()
+        try:
+            self.resolve_desc_label.setText("Updating Resolve — re-checks when you return here…")
+        except (RuntimeError, AttributeError):
+            pass
+
+    def changeEvent(self, event):
+        if (
+            event.type() == QEvent.ActivationChange
+            and self.isActiveWindow()
+            and getattr(self, "_resolve_recheck_pending", False)
+            and not self._recheck_in_flight
+        ):
+            self._recheck_in_flight = True
+            reset_resolve_info_cache()
+            try:
+                self.resolve_desc_label.setText("Re-checking version…")
+            except (RuntimeError, AttributeError):
+                pass
+            threading.Thread(target=self._detect_resolve_async, daemon=True).start()
+        super().changeEvent(event)
 
     def _detect_resolve_async(self):
         self.resolve_info_ready.emit(detect_resolve_info())
@@ -473,6 +507,10 @@ class SetupWindow(QWidget):
             self.studio_warning.setVisible(edition == "Free")
         except (RuntimeError, AttributeError):
             pass  # window/labels already gone
+        self._recheck_in_flight = False
+        # Stop re-checking once the version actually changed after an update.
+        if self._resolve_recheck_pending and version and version != self._version_before_update:
+            self._resolve_recheck_pending = False
 
     def check_row(self, title, description, ok):
         row = QFrame()
