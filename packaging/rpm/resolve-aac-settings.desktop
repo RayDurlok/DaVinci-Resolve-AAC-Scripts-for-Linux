@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Resolve AAC Settings
+Comment=Configure Resolve AAC Tools
+Exec=resolve-aac-settings
+Icon=applications-multimedia
+Terminal=false
+Categories=AudioVideo;Video;

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DaVinci Resolve Updater
+Comment=Find the newest DaVinci Resolve Linux ZIP in Downloads and run the official installer
+Exec=resolve-update-from-downloads
+Icon=applications-multimedia
+Terminal=true
+Categories=Utility;
+Keywords=DaVinci;Resolve;Update;Installer;Blackmagic;

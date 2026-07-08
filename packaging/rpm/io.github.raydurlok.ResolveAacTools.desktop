@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Resolve AAC Tools
+Comment=Configure and start Resolve AAC watchers from the system tray
+Exec=resolve-aac-tray
+Icon=applications-multimedia
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=DaVinci;Resolve;AAC;ffmpeg;

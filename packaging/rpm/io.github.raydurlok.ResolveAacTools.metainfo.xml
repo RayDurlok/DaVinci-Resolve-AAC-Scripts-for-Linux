@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This file is the "shop window" entry Discover (and GNOME Software) renders. -->
+<component type="desktop-application">
+  <id>io.github.raydurlok.ResolveAacTools</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Resolve AAC Tools</name>
+  <summary>Remux AAC audio for DaVinci Resolve and drive it from the system tray</summary>
+
+  <description>
+    <p>
+      DaVinci Resolve on Linux cannot import AAC audio directly. Resolve AAC Tools
+      watches your media, remuxes AAC into a Resolve-friendly container, and adds a
+      system tray to control the watchers, launch Resolve, and fix AAC audio in
+      rendered exports.
+    </p>
+    <p>
+      A guided settings window helps configure watchers, export remuxing, cache
+      paths, native file dialogs, and optional Resolve menu scripts.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Automatic AAC remuxing for imports, the media pool, and the timeline</li>
+      <li>Export watcher that repairs AAC audio in rendered files</li>
+      <li>System tray with launch actions, toggles, cache settings, and logs</li>
+      <li>Modern welcome and settings window for first-run setup</li>
+      <li>Native KDE file dialogs and Resolve launch helpers</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.raydurlok.ResolveAacTools.desktop</launchable>
+
+  <url type="homepage">https://github.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux</url>
+  <url type="bugtracker">https://github.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/issues</url>
+
+  <developer id="io.github.raydurlok">
+    <name>RayDurlok</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+  </categories>
+
+  <keywords>
+    <keyword>DaVinci</keyword>
+    <keyword>Resolve</keyword>
+    <keyword>AAC</keyword>
+    <keyword>ffmpeg</keyword>
+  </keywords>
+
+  <releases>
+    <release version="0.1.11" date="2026-07-07" />
+  </releases>
+</component>
