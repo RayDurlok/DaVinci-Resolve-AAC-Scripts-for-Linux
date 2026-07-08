@@ -49,12 +49,14 @@ rm -f \
   "$BIN_DIR/resolve-with-fonts" \
   "$BIN_DIR/resolve-update-from-downloads" \
   "$BIN_DIR/resolve-aac-tray" \
+  "$BIN_DIR/resolve-aac-settings" \
   "$BIN_DIR/resolve-aac-start" \
   "$APPS_DIR/resolve-aac-importer.desktop" \
   "$APPS_DIR/resolve-aac-watcher.desktop" \
   "$APPS_DIR/resolve-with-aac-mediapool-watch.desktop" \
   "$APPS_DIR/resolve-with-aac-mediapool-cache.desktop" \
   "$APPS_DIR/resolve-aac-tray.desktop" \
+  "$APPS_DIR/resolve-aac-settings.desktop" \
   "$APPS_DIR/resolve-aac-start.desktop" \
   "$APPS_DIR/resolve-update-from-downloads.desktop" \
   "$RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py" \

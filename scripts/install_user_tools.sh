@@ -4,8 +4,6 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 APPS_DIR="$HOME/.local/share/applications"
-RESOLVE_SCRIPTS_DIR="$HOME/.local/share/DaVinciResolve/Fusion/Scripts/Edit"
-RESOLVE_AAC_SCRIPTS_DIR="$RESOLVE_SCRIPTS_DIR/Resolve AAC Tools"
 ASSUME_YES=0
 SKIP_DEPS=0
 
@@ -120,7 +118,7 @@ check_dependencies() {
 
 check_dependencies
 
-mkdir -p "$BIN_DIR" "$APPS_DIR" "$RESOLVE_AAC_SCRIPTS_DIR" "$HOME/Resolve AAC Inbox" "$HOME/Resolve AAC Imports"
+mkdir -p "$BIN_DIR" "$APPS_DIR" "$HOME/Resolve AAC Inbox" "$HOME/Resolve AAC Imports"
 
 cat > "$BIN_DIR/resolve-aac-import" <<EOF
 #!/usr/bin/env bash
@@ -203,6 +201,12 @@ disown || true
 EOF
 chmod +x "$BIN_DIR/resolve-aac-tray"
 
+cat > "$BIN_DIR/resolve-aac-settings" <<EOF
+#!/usr/bin/env bash
+exec python3 "$APP_DIR/resolve_aac_setup.py" "\$@"
+EOF
+chmod +x "$BIN_DIR/resolve-aac-settings"
+
 cat > "$BIN_DIR/resolve-aac-start" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
@@ -218,19 +222,6 @@ setsid "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev
 disown || true
 EOF
 chmod +x "$BIN_DIR/resolve-aac-start"
-
-rm -f \
-  "$RESOLVE_SCRIPTS_DIR/Resolve AAC Current Clip.py" \
-  "$RESOLVE_SCRIPTS_DIR/Resolve AAC Timeline Watch.py" \
-  "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py" \
-  "$RESOLVE_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py" \
-  "$RESOLVE_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
-
-ln -sf "$APP_DIR/resolve_aac_timeline.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"
-ln -sf "$APP_DIR/resolve_aac_timeline_watch.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
-ln -sf "$APP_DIR/resolve_aac_timeline_watch_stop.py" "$RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
-ln -sf "$APP_DIR/resolve_aac_mediapool_watch.py" "$RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
-ln -sf "$APP_DIR/resolve_aac_mediapool_watch_stop.py" "$RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
 
 cat > "$APPS_DIR/resolve-aac-importer.desktop" <<EOF
 [Desktop Entry]
@@ -283,6 +274,16 @@ Terminal=false
 Categories=AudioVideo;Video;
 EOF
 
+cat > "$APPS_DIR/resolve-aac-settings.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Resolve AAC Settings
+Comment=Configure Resolve AAC Tools
+Exec=$BIN_DIR/resolve-aac-settings
+Terminal=false
+Categories=AudioVideo;Video;
+EOF
+
 cat > "$APPS_DIR/resolve-aac-start.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -322,19 +323,18 @@ echo "  $BIN_DIR/resolve-with-aac-mediapool-watch"
 echo "  $BIN_DIR/resolve-with-fonts"
 echo "  $BIN_DIR/resolve-update-from-downloads"
 echo "  $BIN_DIR/resolve-aac-tray"
+echo "  $BIN_DIR/resolve-aac-settings"
 echo "  $BIN_DIR/resolve-aac-start"
-echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Current Clip.py"
-echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC Timeline Watch.py"
-echo "  $RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC Timeline Watch.py"
-echo "  $RESOLVE_AAC_SCRIPTS_DIR/Resolve AAC MediaPool Watch.py"
-echo "  $RESOLVE_AAC_SCRIPTS_DIR/Stop Resolve AAC MediaPool Watch.py"
 echo "  $APPS_DIR/resolve-aac-importer.desktop"
 echo "  $APPS_DIR/resolve-aac-watcher.desktop"
 echo "  $APPS_DIR/resolve-with-aac-mediapool-watch.desktop"
 echo "  $APPS_DIR/resolve-with-aac-mediapool-cache.desktop"
 echo "  $APPS_DIR/resolve-aac-tray.desktop"
+echo "  $APPS_DIR/resolve-aac-settings.desktop"
 echo "  $APPS_DIR/resolve-aac-start.desktop"
 echo "  $APPS_DIR/resolve-update-from-downloads.desktop"
+echo
+echo "Optional Resolve menu scripts are managed from Resolve AAC Settings."
 echo
 echo "Inbox:  $HOME/Resolve AAC Inbox"
 echo "Output: $HOME/Resolve AAC Imports"
