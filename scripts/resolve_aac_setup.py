@@ -155,17 +155,28 @@ def tray_helper():
     return helper
 
 
-_RESOLVE_INFO_CACHE = None
+_RESOLVE_INFO_CACHE = None  # (stat_key, version, edition)
+
+
+def _resolve_bin_stat_key():
+    try:
+        st = os.stat("/opt/resolve/bin/resolve")
+        return (int(st.st_mtime), st.st_size)
+    except OSError:
+        return None
 
 
 def detect_resolve_info():
     """Best-effort (version, edition) for the installed DaVinci Resolve.
 
     version is like "21.0.2" (or None), edition is "Studio"/"Free"/None.
+    Cached against the binary's mtime/size, so the expensive strings(1) scan of
+    the ~600 MB Resolve binary only re-runs when it actually changes.
     """
     global _RESOLVE_INFO_CACHE
-    if _RESOLVE_INFO_CACHE is not None:
-        return _RESOLVE_INFO_CACHE
+    stat_key = _resolve_bin_stat_key()
+    if _RESOLVE_INFO_CACHE is not None and _RESOLVE_INFO_CACHE[0] == stat_key:
+        return _RESOLVE_INFO_CACHE[1], _RESOLVE_INFO_CACHE[2]
     version = None
     edition = None
     resolve_bin = Path("/opt/resolve/bin/resolve")
@@ -201,13 +212,15 @@ def detect_resolve_info():
                 edition = "Studio"
         except Exception:
             pass
-    _RESOLVE_INFO_CACHE = (version, edition)
-    return _RESOLVE_INFO_CACHE
+    _RESOLVE_INFO_CACHE = (stat_key, version, edition)
+    return version, edition
 
 
-def reset_resolve_info_cache():
-    global _RESOLVE_INFO_CACHE
-    _RESOLVE_INFO_CACHE = None
+def cached_resolve_info():
+    """(version, edition) if a fresh cached result exists for the current binary."""
+    if _RESOLVE_INFO_CACHE is not None and _RESOLVE_INFO_CACHE[0] == _resolve_bin_stat_key():
+        return _RESOLVE_INFO_CACHE[1], _RESOLVE_INFO_CACHE[2]
+    return None
 
 
 class ToggleSwitch(QAbstractButton):
@@ -331,10 +344,7 @@ class SetupWindow(QWidget):
         super().__init__(parent)
         self.cfg = load_config()
         self.first_run = first_run
-        self._resolve_detection_started = False
-        self._resolve_recheck_pending = False
         self._recheck_in_flight = False
-        self._version_before_update = None
         self.resolve_info_ready.connect(self._apply_resolve_info)
         self.setWindowTitle("Resolve AAC Tools")
         _icon = app_icon()
@@ -440,14 +450,10 @@ class SetupWindow(QWidget):
         card_layout.addWidget(resolve_row)
         card_layout.addWidget(self.check_row("ffmpeg", "Used for remuxing AAC audio", shutil.which("ffmpeg") is not None))
 
-        # detect_resolve_info() runs strings(1) on a large binary, so run it off the
-        # UI thread and fill the row in when it's ready (or use the cached result).
+        # Version/edition detection scans the large Resolve binary, so keep it off
+        # the UI thread and cached against the binary's mtime (see detect_resolve_info).
         if resolve_ok:
-            if _RESOLVE_INFO_CACHE is not None:
-                self._apply_resolve_info(_RESOLVE_INFO_CACHE)
-            elif not self._resolve_detection_started:
-                self._resolve_detection_started = True
-                threading.Thread(target=self._detect_resolve_async, daemon=True).start()
+            self._refresh_resolve_info()
 
         update_btn = QPushButton("Update Resolve from Downloads ZIP")
         update_btn.setObjectName("ghost")
@@ -465,31 +471,36 @@ class SetupWindow(QWidget):
         except Exception as exc:
             QMessageBox.warning(self, "Resolve AAC Tools", f"Could not launch the Resolve updater:\n{exc}")
             return
-        # The installer runs in its own terminal, so we can't know when it finishes.
-        # Re-detect the version whenever this window is focused again until it changes.
-        self._version_before_update = detect_resolve_info()[0]
-        self._resolve_recheck_pending = True
-        reset_resolve_info_cache()
+        # The installer runs in its own terminal; the version refreshes by itself
+        # when you return to this window (changeEvent -> _refresh_resolve_info).
         try:
             self.resolve_desc_label.setText("Updating Resolve — re-checks when you return here…")
         except (RuntimeError, AttributeError):
             pass
 
     def changeEvent(self, event):
-        if (
-            event.type() == QEvent.ActivationChange
-            and self.isActiveWindow()
-            and getattr(self, "_resolve_recheck_pending", False)
-            and not self._recheck_in_flight
-        ):
-            self._recheck_in_flight = True
-            reset_resolve_info_cache()
-            try:
-                self.resolve_desc_label.setText("Re-checking version…")
-            except (RuntimeError, AttributeError):
-                pass
-            threading.Thread(target=self._detect_resolve_async, daemon=True).start()
+        if event.type() == QEvent.ActivationChange and self.isActiveWindow():
+            self._refresh_resolve_info()
         super().changeEvent(event)
+
+    def _refresh_resolve_info(self):
+        # Cheap on every focus: a stat() tells us whether the ~600 MB Resolve
+        # binary changed. Only then do we re-run the expensive strings() scan — so
+        # tool updates, manual updates, and external changes all get picked up.
+        if self._recheck_in_flight or not hasattr(self, "resolve_desc_label"):
+            return
+        if not Path("/opt/resolve/bin/resolve").exists():
+            return
+        cached = cached_resolve_info()
+        if cached is not None:
+            self._apply_resolve_info(cached)
+            return
+        self._recheck_in_flight = True
+        try:
+            self.resolve_desc_label.setText("Detecting version…")
+        except (RuntimeError, AttributeError):
+            pass
+        threading.Thread(target=self._detect_resolve_async, daemon=True).start()
 
     def _detect_resolve_async(self):
         self.resolve_info_ready.emit(detect_resolve_info())
@@ -508,9 +519,6 @@ class SetupWindow(QWidget):
         except (RuntimeError, AttributeError):
             pass  # window/labels already gone
         self._recheck_in_flight = False
-        # Stop re-checking once the version actually changed after an update.
-        if self._resolve_recheck_pending and version and version != self._version_before_update:
-            self._resolve_recheck_pending = False
 
     def check_row(self, title, description, ok):
         row = QFrame()

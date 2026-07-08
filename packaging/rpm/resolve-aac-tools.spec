@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           resolve-aac-tools
-Version:        0.1.14
+Version:        0.1.15
 Release:        1%{?dist}
 Summary:        AAC audio remux tools and system tray for DaVinci Resolve on Linux
 
@@ -209,6 +209,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.15-1
+- Cache version detection against the binary mtime; only re-scan when Resolve
+  actually changes, so manual updates are picked up and focus stays cheap
+
 * Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.14-1
 - Re-detect the Resolve version after running the updater (on window focus)
 
