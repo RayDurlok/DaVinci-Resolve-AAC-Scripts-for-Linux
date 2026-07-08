@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           resolve-aac-tools
-Version:        0.1.18
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -211,6 +211,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.0-1
+- Available from Fedora Copr and as a Discover tile
+- Add a trademark notice (not affiliated with Blackmagic Design) to the README
+  and AppStream metadata
+
 * Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.1.18-1
 - Rebrand to DaVinci Resolve Toolkit
 - Restore Original Sources: undo AAC remuxing for the current project, from the

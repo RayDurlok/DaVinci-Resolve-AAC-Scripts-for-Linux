@@ -6,6 +6,16 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-09
+
+### Added
+- Available from Fedora Copr (`dnf copr enable raydurlok/davinci-resolve-toolkit`)
+  and as a Discover / GNOME Software tile.
+
+### Changed
+- Added a trademark notice (not affiliated with or endorsed by Blackmagic Design)
+  to the README and AppStream metadata.
+
 ## [0.1.18] - 2026-07-09
 
 ### Added

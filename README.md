@@ -23,7 +23,14 @@ automatically. Video is copied, not re-encoded; your originals stay untouched.
 
 ## Install
 
-**Discover / GNOME Software:** coming soon (Fedora Copr).
+**Discover / GNOME Software (Fedora):**
+
+```bash
+sudo dnf copr enable raydurlok/davinci-resolve-toolkit
+sudo dnf install resolve-aac-tools
+```
+
+Once the Copr repo is enabled it also appears as a searchable tile in Discover.
 
 **From the release tarball** (any distro):
 
@@ -138,6 +145,11 @@ resolve-update-from-downloads        # update Resolve from ~/Downloads
 If this saves you time, you can support the work:
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/donate/?hosted_button_id=V4HH8D9L36UPG)
+
+## Notice
+
+Not affiliated with or endorsed by Blackmagic Design. DaVinci Resolve is a
+trademark of Blackmagic Design.
 
 ## License
 

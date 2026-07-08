@@ -29,6 +29,7 @@
       <li>Native KDE file dialogs and a Fusion font fix</li>
       <li>Modern welcome and settings window for first-run setup</li>
     </ul>
+    <p>Not affiliated with or endorsed by Blackmagic Design. DaVinci Resolve is a trademark of Blackmagic Design.</p>
   </description>
 
   <launchable type="desktop-id">io.github.raydurlok.ResolveAacTools.desktop</launchable>
@@ -84,6 +85,11 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.0" date="2026-07-09">
+      <description>
+        <p>Now available from Fedora Copr and Discover, with a trademark notice.</p>
+      </description>
+    </release>
     <release version="0.1.18" date="2026-07-09">
       <description>
         <p>This release rebrands to DaVinci Resolve Toolkit and makes remuxing reversible.</p>
