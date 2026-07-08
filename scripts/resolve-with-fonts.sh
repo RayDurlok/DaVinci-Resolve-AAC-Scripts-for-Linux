@@ -46,8 +46,20 @@ preload_system_glib_if_needed
 # Resolve bringt kein platformthemes-Plugin mit -> wir stellen das System-Plugin
 # (libqxdgdesktopportal.so, leitet QFileDialog an xdg-desktop-portal-kde) bereit.
 # Nur dieses eine Plugin liegt im Pfad, daher keine Kollision mit Resolves Qt-Plugins.
-RESOLVE_QT_PLUGINS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/qt-plugins"
-if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
+# User-writable location so this works from both the git tree and a /usr RPM install.
+RESOLVE_QT_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/resolve-aac-tools/qt-plugins"
+PORTAL_PLUGIN="$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so"
+if [[ ! -e "$PORTAL_PLUGIN" ]]; then
+  for base in /usr/lib64/qt5/plugins/platformthemes /usr/lib/qt5/plugins/platformthemes \
+              /usr/lib/x86_64-linux-gnu/qt5/plugins/platformthemes /usr/lib/qt/plugins/platformthemes; do
+    if [[ -e "$base/libqxdgdesktopportal.so" ]]; then
+      mkdir -p "$RESOLVE_QT_PLUGINS/platformthemes"
+      ln -sf "$base/libqxdgdesktopportal.so" "$PORTAL_PLUGIN"
+      break
+    fi
+  done
+fi
+if [[ -e "$PORTAL_PLUGIN" ]]; then
   export QT_QPA_PLATFORMTHEME=xdgdesktopportal
   export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
 fi

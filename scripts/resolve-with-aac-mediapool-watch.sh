@@ -62,8 +62,20 @@ preload_system_glib_if_needed() {
 preload_system_glib_if_needed
 
 # Native KDE-Dateidialoge statt Resolves altem Qt-Widget-Dialog (siehe resolve-with-fonts.sh).
-RESOLVE_QT_PLUGINS="$(cd "$APP_DIR/.." && pwd)/qt-plugins"
-if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
+# User-writable location so this works from both the git tree and a /usr RPM install.
+RESOLVE_QT_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/resolve-aac-tools/qt-plugins"
+PORTAL_PLUGIN="$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so"
+if [[ ! -e "$PORTAL_PLUGIN" ]]; then
+  for base in /usr/lib64/qt5/plugins/platformthemes /usr/lib/qt5/plugins/platformthemes \
+              /usr/lib/x86_64-linux-gnu/qt5/plugins/platformthemes /usr/lib/qt/plugins/platformthemes; do
+    if [[ -e "$base/libqxdgdesktopportal.so" ]]; then
+      mkdir -p "$RESOLVE_QT_PLUGINS/platformthemes"
+      ln -sf "$base/libqxdgdesktopportal.so" "$PORTAL_PLUGIN"
+      break
+    fi
+  done
+fi
+if [[ -e "$PORTAL_PLUGIN" ]]; then
   export QT_QPA_PLATFORMTHEME=xdgdesktopportal
   export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
 fi

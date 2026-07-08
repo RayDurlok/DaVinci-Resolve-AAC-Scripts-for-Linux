@@ -51,7 +51,11 @@ EXPORT_WATCH_STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
 INTERCEPT_WATCH_LOG_PATH = Path("/tmp/resolve_render_location_watch.log")
 INTERCEPT_WATCH_STOP_PATH = Path("/tmp/resolve_render_location_watch.stop")
 NATIVE_DIALOG_PLUGIN = "libqxdgdesktopportal.so"
-NATIVE_DIALOG_PLUGIN_LINK = SCRIPT_DIR.parent / "qt-plugins" / "platformthemes" / NATIVE_DIALOG_PLUGIN
+_XDG_DATA_HOME = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+# User-writable so it also works from a read-only /usr RPM install, not just the git tree.
+NATIVE_DIALOG_PLUGIN_LINK = (
+    Path(_XDG_DATA_HOME) / "resolve-aac-tools" / "qt-plugins" / "platformthemes" / NATIVE_DIALOG_PLUGIN
+)
 RESOLVE_FONT_WRAPPER_PATH = Path.home() / ".local" / "bin" / "resolve-with-fonts"
 RESOLVE_DESKTOP_OVERRIDE_PATH = (
     Path.home() / ".local" / "share" / "applications" / "com.blackmagicdesign.resolve.desktop"

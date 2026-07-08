@@ -32,7 +32,7 @@ except ImportError:
     print("Install it with your distro package manager, for example python3-pyside6.", file=sys.stderr)
     raise SystemExit(2)
 
-from resolve_aac_config import load_config, save_config
+from resolve_aac_config import APP_VERSION, load_config, save_config
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -420,7 +420,12 @@ class SetupWindow(QWidget):
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(26, 22, 26, 22)
         card_layout.setSpacing(12)
-        card_layout.addWidget(make_label("Resolve AAC Tools", 20, QFont.DemiBold))
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        title_row.addWidget(make_label("Resolve AAC Tools", 20, QFont.DemiBold))
+        title_row.addWidget(make_label(f"v{APP_VERSION}", 13, QFont.Normal, MUTED))
+        title_row.addStretch(1)
+        card_layout.addLayout(title_row)
         card_layout.addWidget(make_label(
             "DaVinci Resolve on Linux can't import AAC audio directly. These tools remux AAC "
             "into Resolve-friendly media, add a tray to control everything, and repair AAC audio in exports.",
