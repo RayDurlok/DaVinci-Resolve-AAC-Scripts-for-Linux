@@ -23,8 +23,9 @@ STOP_PATH = Path("/tmp/resolve_aac_export_watch.stop")
 
 def log(message):
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}"
-    with LOG_PATH.open("a") as log_file:
-        log_file.write(line + "\n")
+    if os.environ.get("RESOLVE_AAC_NO_LOG") != "1":
+        with LOG_PATH.open("a") as log_file:
+            log_file.write(line + "\n")
     if sys.stdout.isatty():
         print(line, flush=True)
 
@@ -283,7 +284,10 @@ def desktop_notify(args, title, message):
 
 
 def convert(path, args):
-    temp_path = path.with_name(f".{path.name}.resolve-aac-fix-{uuid.uuid4().hex}.tmp.mp4")
+    # Keep the source container: a .mov (ProRes/DNxHD) export cannot be muxed into
+    # MP4, so deriving the temp extension from the input avoids ffmpeg exit 234.
+    container_ext = path.suffix if path.suffix.lower() in MEDIA_EXTS else ".mp4"
+    temp_path = path.with_name(f".{path.name}.resolve-aac-fix-{uuid.uuid4().hex}.tmp{container_ext}")
     output_path = path if args.replace else unique_path(fixed_output_path(path, args.suffix))
 
     command = [
