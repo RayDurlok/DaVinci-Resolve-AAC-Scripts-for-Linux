@@ -3,9 +3,9 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           resolve-aac-tools
-Version:        0.1.17
+Version:        0.1.18
 Release:        1%{?dist}
-Summary:        AAC audio remux tools and system tray for DaVinci Resolve on Linux
+Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
 # The scripts are GPLv3. Switch to GPL-3.0-only if upstream ever drops "or later".
 License:        GPL-3.0-or-later
@@ -36,14 +36,16 @@ Requires:       python3-pyside6
 Recommends:     rsms-inter-fonts
 
 %description
-DaVinci Resolve on Linux cannot import AAC audio directly. Resolve AAC Tools
-watches your media, remuxes AAC into a Resolve-friendly container, and adds a
-system tray to control the watchers, launch Resolve, and fix AAC audio in
-rendered exports.
+DaVinci Resolve on Linux cannot import AAC audio directly. DaVinci Resolve
+Toolkit watches your media, remuxes AAC into a Resolve-friendly container, and
+adds a system tray to control the watchers, launch Resolve, and fix AAC audio in
+rendered exports. Remuxing can be undone at any time with "Restore original
+sources", and applied on demand to the current clip or the whole media pool from
+Resolve's Scripts menu.
 
 This package installs the tools system-wide. Per-user preferences are managed
-from the tray and the Resolve AAC Settings window. Resolve menu scripts are
-optional and can be installed from Settings.
+from the tray and the settings window. Resolve menu scripts are optional and can
+be installed from Settings.
 
 %prep
 %autosetup -n %{srcname}-%{version}
@@ -68,7 +70,7 @@ EOF
 
 cat > %{buildroot}%{_bindir}/resolve-aac-current-clip <<EOF
 #!/usr/bin/env bash
-exec python3 "%{sharedir}/resolve_aac_timeline.py" --overwrite "\$@"
+exec python3 "%{sharedir}/resolve_aac_remux_current.py" "\$@"
 EOF
 
 cat > %{buildroot}%{_bindir}/resolve-aac-timeline-watch <<EOF
@@ -115,7 +117,7 @@ cat > %{buildroot}%{_bindir}/resolve-aac-tray <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 
 if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   exit 0
@@ -140,7 +142,7 @@ if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   exit 0
 fi
 
-LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 setsid "%{sharedir}/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev/null &
 disown || true
 EOF
@@ -209,6 +211,15 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.1.18-1
+- Rebrand to DaVinci Resolve Toolkit
+- Restore Original Sources: undo AAC remuxing for the current project, from the
+  tray or Resolve's Scripts menu (stops the watcher first so it does not re-remux)
+- Remux All AAC Media and single-clip remux as revertible Media Pool replacements
+  that follow the cache setting; record every remux so it can be restored
+- Fix Resolve menu scripts crashing when launched without __file__
+- MediaPool watcher now exits when Resolve closes and when the tray quits
+
 * Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.17-1
 - Set the portal env in the font-fix launch wrapper too, so native file dialogs
   work when Resolve is started from the menu (not just the tray launch actions)

@@ -106,7 +106,7 @@ def common_root(paths):
 
 
 def output_digest(input_path):
-    digest = hashlib.sha1(str(input_path).encode("utf-8")).hexdigest()[:8]
+    digest = hashlib.sha1(str(input_path).encode("utf-8")).hexdigest()[:4]
     return digest
 
 

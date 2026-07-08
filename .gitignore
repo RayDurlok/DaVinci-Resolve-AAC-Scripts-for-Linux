@@ -34,3 +34,7 @@ qt-plugins/platformthemes/
 # Agent/local
 .claude/
 vkd3d-proton.cache
+
+# Local scratch (not shipped; store screenshots live in docs/screenshots/)
+Screenshots/
+experiments/

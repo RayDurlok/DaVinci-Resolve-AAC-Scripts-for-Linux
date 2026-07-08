@@ -6,6 +6,79 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-07-09
+
+### Added
+- "Restore Original Sources": undo AAC remuxing for the currently open project,
+  from the tray or from Resolve's Scripts menu. It stops the MediaPool watcher
+  first so the restored clips are not immediately remuxed again.
+- "Remux All AAC Media" and a reworked single-clip "Current Clip" (also the
+  `resolve-aac-current-clip` command), both as revertible Media Pool
+  replacements that follow the cache setting and record every remux so
+  "Restore Original Sources" can undo them.
+- Store screenshots and a documented "Undo and on-demand remux" section in the
+  README; the settings "menu scripts" section now mentions restore/remux.
+
+### Changed
+- Rebranded to "DaVinci Resolve Toolkit" (app name, settings window, desktop
+  entry, and AppStream/Discover metadata).
+- The MediaPool watcher now exits when Resolve closes and when the tray quits,
+  instead of lingering as an orphan.
+
+### Fixed
+- Resolve menu scripts no longer crash when Resolve runs them without `__file__`.
+
+### Removed
+- Two stray desktop files that hardcoded a personal home path.
+
+## [0.1.17] - 2026-07-08
+
+### Fixed
+- Native file dialogs (Export Still/Import) now also work when Resolve is
+  started from the application menu: the portal environment is set in the
+  font-fix launch wrapper too, not only in the tray launch actions.
+
+## [0.1.16] - 2026-07-08
+
+### Added
+- The welcome page shows the app version.
+
+### Fixed
+- Native file dialogs from an RPM install: the portal plugin symlink is created
+  in a user-writable directory instead of read-only `/usr`.
+
+## [0.1.15] - 2026-07-08
+
+### Changed
+- Resolve version detection is cached against the Resolve binary's mtime and
+  only re-scans when Resolve actually changes, so manual updates are picked up
+  and window focus stays cheap.
+
+## [0.1.14] - 2026-07-08
+
+### Changed
+- Re-detect the Resolve version after running the updater (on window focus).
+
+## [0.1.13] - 2026-07-08
+
+### Changed
+- Show only the main "DaVinci Resolve Toolkit" entry in the application menu;
+  the secondary launchers are hidden (`NoDisplay`).
+
+## [0.1.12] - 2026-07-08
+
+### Added
+- Modern first-run setup / settings window (PySide6) with welcome, preferences,
+  paths, export, and extras pages and automatic dark/light theming, backed by a
+  shared config module and reused by the tray.
+- RPM packaging: system-wide install, CLI wrappers, AppStream metadata and a
+  Discover tile, desktop entries, and a local `build-rpm.sh`.
+- App icon shipped for the Discover tile, application menu, and tray.
+
+### Fixed
+- Export remux for ProRes/`.mov` renders (the temporary container is derived
+  from the source extension) and honor the logging toggle.
+
 ## [0.1.11] - 2026-07-07
 
 ### Changed

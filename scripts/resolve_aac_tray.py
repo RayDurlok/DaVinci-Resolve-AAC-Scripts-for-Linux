@@ -123,7 +123,7 @@ def write_autostart_file():
         "\n".join([
             "[Desktop Entry]",
             "Type=Application",
-            "Name=Resolve AAC Tools",
+            "Name=DaVinci Resolve Toolkit",
             "Comment=Start Resolve AAC tray at login",
             f"Exec={tray_command()}",
             "Terminal=false",
@@ -192,7 +192,7 @@ class ResolveAacTray(QObject):
             icon = self.app.style().standardIcon(QStyle.SP_MediaPlay)
 
         self.tray = QSystemTrayIcon(icon)
-        self.tray.setToolTip("Resolve AAC Tools")
+        self.tray.setToolTip("DaVinci Resolve Toolkit")
         self.menu = QMenu()
         if hasattr(self.menu, "setToolTipsVisible"):
             self.menu.setToolTipsVisible(True)
@@ -212,6 +212,11 @@ class ResolveAacTray(QObject):
         self.stop_action.setToolTip("Stop the MediaPool watcher. The export remux watcher is controlled by its toggle.")
         self.stop_action.triggered.connect(self.stop_watcher)
         self.menu.addAction(self.stop_action)
+
+        self.restore_action = QAction("Restore original sources (current project)")
+        self.restore_action.setToolTip("Undo the AAC remux: point every remuxed clip in the open project back to its original file.")
+        self.restore_action.triggered.connect(self.restore_original_sources)
+        self.menu.addAction(self.restore_action)
 
         self.menu.addSeparator()
 
@@ -316,7 +321,7 @@ class ResolveAacTray(QObject):
         self.menu.addAction(self.open_log_action)
 
         self.settings_action = QAction("Settings...")
-        self.settings_action.setToolTip("Open the full Resolve AAC Tools setup and preferences window.")
+        self.settings_action.setToolTip("Open the full DaVinci Resolve Toolkit setup and preferences window.")
         self.settings_action.triggered.connect(self.open_settings)
         self.menu.addAction(self.settings_action)
 
@@ -412,7 +417,7 @@ class ResolveAacTray(QObject):
         if cache_changed and self.watcher_is_running() and self.resolve_is_running():
             self.stop_watcher()
             QTimer.singleShot(1000, self.start_watcher_for_manual_resolve)
-            self.notify("Resolve AAC Tools", "Restarting watcher with updated output settings.")
+            self.notify("DaVinci Resolve Toolkit", "Restarting watcher with updated output settings.")
 
         self.update_status()
 
@@ -605,10 +610,10 @@ class ResolveAacTray(QObject):
 
     def install_export_plugin(self):
         if self.export_plugin_installed():
-            self.notify("Resolve AAC Tools", "AAC export plugin is already installed.")
+            self.notify("DaVinci Resolve Toolkit", "AAC export plugin is already installed.")
             return
 
-        self.notify("Resolve AAC Tools", "Downloading AAC export plugin...")
+        self.notify("DaVinci Resolve Toolkit", "Downloading AAC export plugin...")
         with tempfile.TemporaryDirectory(prefix="resolve-aac-export-plugin-") as raw_tmp:
             tmp = Path(raw_tmp)
             archive_path = tmp / "aac_encoder_plugin-linux-bundle.tar.gz"
@@ -623,17 +628,17 @@ class ResolveAacTray(QObject):
 
             self.install_export_plugin_file(source_file)
 
-        self.notify("Resolve AAC Tools", "AAC export plugin installed. Restart Resolve to use it.")
+        self.notify("DaVinci Resolve Toolkit", "AAC export plugin installed. Restart Resolve to use it.")
 
     def uninstall_export_plugin(self):
         bundle_dir = EXPORT_PLUGIN_TARGET_DIR.parent.parent
         if not bundle_dir.exists():
-            self.notify("Resolve AAC Tools", "AAC export plugin is not installed.")
+            self.notify("DaVinci Resolve Toolkit", "AAC export plugin is not installed.")
             return
 
         try:
             shutil.rmtree(bundle_dir)
-            self.notify("Resolve AAC Tools", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
+            self.notify("DaVinci Resolve Toolkit", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
             return
         except OSError:
             pass
@@ -642,7 +647,7 @@ class ResolveAacTray(QObject):
             raise RuntimeError("Uninstalling from /opt/resolve/IOPlugins requires pkexec or write access.")
 
         subprocess.run(["pkexec", "rm", "-rf", str(bundle_dir)], check=True)
-        self.notify("Resolve AAC Tools", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
+        self.notify("DaVinci Resolve Toolkit", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
 
     def resolve_font_wrapper_content(self):
         return """#!/usr/bin/env bash
@@ -834,13 +839,13 @@ Name[en_US]=DaVinci Resolve
         self.refresh_desktop_database()
 
         if removed:
-            self.notify("Resolve AAC Tools", "Resolve font fix uninstalled. Restart Resolve to finish unloading it.")
+            self.notify("DaVinci Resolve Toolkit", "Resolve font fix uninstalled. Restart Resolve to finish unloading it.")
         else:
-            self.notify("Resolve AAC Tools", "Resolve font fix is not installed.")
+            self.notify("DaVinci Resolve Toolkit", "Resolve font fix is not installed.")
 
     def start_resolve(self):
         if self.process and self.process.poll() is None:
-            self.notify("Resolve AAC Tools", "Resolve launcher is already running.")
+            self.notify("DaVinci Resolve Toolkit", "Resolve launcher is already running.")
             return
 
         launcher = self.launcher_path()
@@ -854,7 +859,7 @@ Name[en_US]=DaVinci Resolve
             self.error("Could not start Resolve", str(exc))
             return
 
-        self.notify("Resolve AAC Tools", "Started Resolve with MediaPool watcher.")
+        self.notify("DaVinci Resolve Toolkit", "Started Resolve with MediaPool watcher.")
         self.update_status()
 
     def start_watcher_for_manual_resolve(self):
@@ -888,7 +893,7 @@ Name[en_US]=DaVinci Resolve
             self.error("Could not start watcher", str(exc))
             return
 
-        self.notify("Resolve AAC Tools", "Resolve detected. Started MediaPool watcher.")
+        self.notify("DaVinci Resolve Toolkit", "Resolve detected. Started MediaPool watcher.")
         self.update_status()
 
     def stop_watcher(self):
@@ -904,7 +909,7 @@ Name[en_US]=DaVinci Resolve
             return
 
         self.watcher_process = None
-        self.notify("Resolve AAC Tools", "Watcher stop requested.")
+        self.notify("DaVinci Resolve Toolkit", "Watcher stop requested.")
         self.update_status()
 
     def start_export_watcher(self, notify=True):
@@ -939,7 +944,7 @@ Name[en_US]=DaVinci Resolve
             return
 
         if notify:
-            self.notify("Resolve AAC Tools", "Export remux watcher started.")
+            self.notify("DaVinci Resolve Toolkit", "Export remux watcher started.")
         self.update_status()
 
     def stop_export_watcher(self, notify=True):
@@ -957,7 +962,7 @@ Name[en_US]=DaVinci Resolve
             self.export_watcher_log_file = None
 
         if notify:
-            self.notify("Resolve AAC Tools", "Export remux watcher stop requested.")
+            self.notify("DaVinci Resolve Toolkit", "Export remux watcher stop requested.")
         self.update_status()
 
     def set_use_cache(self, enabled):
@@ -967,7 +972,7 @@ Name[en_US]=DaVinci Resolve
         if watcher_was_running and self.resolve_is_running():
             self.stop_watcher()
             QTimer.singleShot(1000, self.start_watcher_for_manual_resolve)
-            self.notify("Resolve AAC Tools", "Restarting watcher with updated output settings.")
+            self.notify("DaVinci Resolve Toolkit", "Restarting watcher with updated output settings.")
         self.update_status()
 
     def set_watch_manual_resolve(self, enabled):
@@ -1056,7 +1061,7 @@ Name[en_US]=DaVinci Resolve
         if enabled:
             status = self.ensure_native_dialog_plugin()
             if status == "missing":
-                self.notify("Resolve AAC Tools",
+                self.notify("DaVinci Resolve Toolkit",
                             "Portal plugin not found - install your distro's Qt5 "
                             "xdg-desktop-portal platformtheme package.")
             else:
@@ -1065,10 +1070,10 @@ Name[en_US]=DaVinci Resolve
                     message += " Restart Resolve so Export Still/Import become native too."
                 elif not self.watcher_is_running():
                     message += " Deliver intercept starts with the MediaPool watcher."
-                self.notify("Resolve AAC Tools", message)
+                self.notify("DaVinci Resolve Toolkit", message)
         else:
             if self.remove_native_dialog_plugin():
-                self.notify("Resolve AAC Tools",
+                self.notify("DaVinci Resolve Toolkit",
                             "Native file dialogs off. Restart Resolve to revert Export Still/Import.")
         # Deliver-Abfang an den MediaPool-Watcher gekoppelt starten/stoppen.
         self.reconcile_intercept_watcher()
@@ -1126,7 +1131,7 @@ Name[en_US]=DaVinci Resolve
             return
 
         if notify:
-            self.notify("Resolve AAC Tools", "Native Deliver browse enabled.")
+            self.notify("DaVinci Resolve Toolkit", "Native Deliver browse enabled.")
         self.update_status()
 
     def stop_intercept_watcher(self, notify=True):
@@ -1144,7 +1149,7 @@ Name[en_US]=DaVinci Resolve
             self.intercept_watcher_log_file = None
 
         if notify:
-            self.notify("Resolve AAC Tools", "Native Deliver browse disabled.")
+            self.notify("DaVinci Resolve Toolkit", "Native Deliver browse disabled.")
         self.update_status()
 
     def confirm_uninstall(self, title, message):
@@ -1201,7 +1206,7 @@ Name[en_US]=DaVinci Resolve
             self.error("Could not apply Resolve font fix", str(exc))
             return
 
-        self.notify("Resolve AAC Tools", "Resolve font fix applied. Restart Resolve to use it.")
+        self.notify("DaVinci Resolve Toolkit", "Resolve font fix applied. Restart Resolve to use it.")
         self.update_resolve_font_action()
 
     def handle_uninstall_resolve_font_action(self):
@@ -1233,7 +1238,7 @@ Name[en_US]=DaVinci Resolve
                 except Exception as exc:
                     self.error("Could not start Resolve updater", str(exc))
                     return
-                self.notify("Resolve AAC Tools", "Resolve updater opened in a terminal.")
+                self.notify("DaVinci Resolve Toolkit", "Resolve updater opened in a terminal.")
                 return
 
         self.error(
@@ -1268,7 +1273,7 @@ Name[en_US]=DaVinci Resolve
     def open_path(self, path):
         path = path.expanduser()
         if path == LOG_PATH and not path.exists():
-            self.notify("Resolve AAC Tools", "No launcher log exists yet.")
+            self.notify("DaVinci Resolve Toolkit", "No launcher log exists yet.")
             return
         if path != LOG_PATH:
             path.mkdir(parents=True, exist_ok=True)
@@ -1296,7 +1301,7 @@ Name[en_US]=DaVinci Resolve
         self.remux_exports_action.blockSignals(False)
         self.tray.setToolTip(
             "\n".join([
-                "Resolve AAC Tools",
+                "DaVinci Resolve Toolkit",
                 f"Status: {status}",
                 f"Output: {mode}",
                 f"Export remux: {'on' if self.config['remux_exports'] else 'off'}",
@@ -1384,6 +1389,21 @@ Name[en_US]=DaVinci Resolve
 
         self.manual_resolve_was_running = False
 
+    def restore_original_sources(self):
+        script = SCRIPT_DIR / "resolve_aac_restore.py"
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                capture_output=True,
+                text=True,
+                env=self.current_env(),
+                timeout=180,
+            )
+            lines = [ln for ln in (result.stdout or result.stderr or "").splitlines() if ln.strip()]
+            self.notify("DaVinci Resolve Toolkit", lines[0] if lines else "Restore finished.")
+        except Exception as exc:
+            self.error("Restore failed", str(exc))
+
     def on_activated(self, reason):
         if reason == QSystemTrayIcon.Trigger:
             self.open_settings()
@@ -1401,6 +1421,13 @@ Name[en_US]=DaVinci Resolve
             self.intercept_watcher_process.terminate()
         if self.intercept_watcher_log_file:
             self.intercept_watcher_log_file.close()
+        # The MediaPool watcher must not outlive the tray either.
+        try:
+            STOP_PATH.write_text("stop\n")
+        except OSError:
+            pass
+        if self.watcher_process and self.watcher_process.poll() is None:
+            self.watcher_process.terminate()
         save_config(self.config)
         self.tray.hide()
         self.app.quit()

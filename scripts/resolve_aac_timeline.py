@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 import sys
 import traceback
 from pathlib import Path
@@ -213,6 +214,33 @@ def cache_output_dir_for_input(input_path, cache_dir):
     digest = hashlib.sha1(str(input_path.parent).encode("utf-8")).hexdigest()[:12]
     safe_parent = input_path.parent.name or "root"
     return cache_dir.expanduser().resolve() / f"{safe_parent}_{digest}"
+
+
+REMUX_MAP_PATH = Path.home() / ".config" / "resolve-aac-tools" / "remux_map.json"
+
+
+def record_remux(output_path, original_path):
+    """Remember that a remux came from an original, so the restore action can put
+    the original back. Best-effort: never break a remux over bookkeeping."""
+    try:
+        REMUX_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+        data = {}
+        if REMUX_MAP_PATH.exists():
+            try:
+                data = json.loads(REMUX_MAP_PATH.read_text())
+            except Exception:
+                data = {}
+        data[str(Path(output_path).expanduser().resolve())] = str(Path(original_path).expanduser().resolve())
+        REMUX_MAP_PATH.write_text(json.dumps(data, indent=2) + "\n")
+    except Exception:
+        pass
+
+
+def load_remux_map():
+    try:
+        return json.loads(REMUX_MAP_PATH.read_text())
+    except Exception:
+        return {}
 
 
 def clip_info_for_timeline_item(source_item, audio_item, audio_track):

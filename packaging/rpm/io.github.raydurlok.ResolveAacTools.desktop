@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Resolve AAC Tools
-Comment=Configure and start Resolve AAC watchers from the system tray
+Name=DaVinci Resolve Toolkit
+Comment=Fix AAC audio and control DaVinci Resolve from the system tray
 Exec=resolve-aac-tray
 Icon=io.github.raydurlok.ResolveAacTools
 Terminal=false

@@ -37,13 +37,15 @@ from resolve_aac_config import APP_VERSION, load_config, save_config
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RESOLVE_SCRIPTS_DIR = Path.home() / ".local" / "share" / "DaVinciResolve" / "Fusion" / "Scripts" / "Edit"
-RESOLVE_AAC_SCRIPTS_DIR = RESOLVE_SCRIPTS_DIR / "Resolve AAC Tools"
+RESOLVE_AAC_SCRIPTS_DIR = RESOLVE_SCRIPTS_DIR / "DaVinci Resolve Toolkit"
 SCRIPT_LINKS = {
-    "Resolve AAC Current Clip.py": "resolve_aac_timeline.py",
+    "Resolve AAC Current Clip.py": "resolve_aac_remux_current.py",
     "Resolve AAC Timeline Watch.py": "resolve_aac_timeline_watch.py",
     "Stop Resolve AAC Timeline Watch.py": "resolve_aac_timeline_watch_stop.py",
     "Resolve AAC MediaPool Watch.py": "resolve_aac_mediapool_watch.py",
     "Stop Resolve AAC MediaPool Watch.py": "resolve_aac_mediapool_watch_stop.py",
+    "Restore Original Sources.py": "resolve_aac_restore.py",
+    "Remux All AAC Media.py": "resolve_aac_remux_all.py",
 }
 
 # Two palettes; the active one is chosen from the system colour scheme at
@@ -106,7 +108,7 @@ def app_icon():
         if pixmap.isNull():
             continue
         # A huge source (e.g. 3000x3000) can overwhelm the system tray over DBus
-        # and take down plasmashell — cap it to a sane size.
+        # and take down plasmashell, cap it to a sane size.
         if max(pixmap.width(), pixmap.height()) > 256:
             pixmap = pixmap.scaled(256, 256, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         return QIcon(pixmap)
@@ -346,7 +348,7 @@ class SetupWindow(QWidget):
         self.first_run = first_run
         self._recheck_in_flight = False
         self.resolve_info_ready.connect(self._apply_resolve_info)
-        self.setWindowTitle("Resolve AAC Tools")
+        self.setWindowTitle("DaVinci Resolve Toolkit")
         _icon = app_icon()
         if not _icon.isNull():
             self.setWindowIcon(_icon)
@@ -402,8 +404,8 @@ class SetupWindow(QWidget):
         root.addLayout(footer)
 
         self.titles = [
-            ("Welcome", "Let's set up your AAC workflow."),
-            ("Preferences", "Fast defaults now, easy changes later."),
+            ("Welcome", "Configure the toolkit here, or from the tray icon. Click Continue to begin."),
+            ("Preferences", "General behaviour and startup options."),
             ("Paths", "Choose how remuxed files are stored."),
             ("Export", "Two ways to get web-friendly AAC in your renders."),
             ("Extras", ""),
@@ -422,23 +424,23 @@ class SetupWindow(QWidget):
         card_layout.setSpacing(12)
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
-        title_row.addWidget(make_label("Resolve AAC Tools", 20, QFont.DemiBold))
+        title_row.addWidget(make_label("DaVinci Resolve Toolkit", 20, QFont.DemiBold))
         title_row.addWidget(make_label(f"v{APP_VERSION}", 13, QFont.Normal, MUTED))
         title_row.addStretch(1)
         card_layout.addLayout(title_row)
         card_layout.addWidget(make_label(
-            "DaVinci Resolve on Linux can't import AAC audio directly. These tools remux AAC "
-            "into Resolve-friendly media, add a tray to control everything, and repair AAC audio in exports.",
+            "Resolve on Linux can't import AAC audio. It converts AAC to PCM that Resolve can "
+            "read on import, plus a few more fixes, all from the tray.",
             14,
             QFont.Normal,
             MUTED,
         ))
         resolve_ok = Path("/opt/resolve/bin/resolve").exists()
 
-        # Studio warning — hidden while detecting; shown only when Resolve is
+        # Studio warning, hidden while detecting; shown only when Resolve is
         # missing or turns out to be the free edition (decided by the async check).
         self.studio_warning = make_label(
-            "Requires DaVinci Resolve Studio — the free version doesn't expose the scripting API these tools use.",
+            "Requires DaVinci Resolve Studio, the free version doesn't expose the scripting API these tools use.",
             13,
             QFont.DemiBold,
             WARN,
@@ -460,7 +462,7 @@ class SetupWindow(QWidget):
         if resolve_ok:
             self._refresh_resolve_info()
 
-        update_btn = QPushButton("Update Resolve from Downloads ZIP")
+        update_btn = QPushButton("Update DaVinci Resolve from a ZIP in Downloads")
         update_btn.setObjectName("ghost")
         update_btn.setCursor(Qt.PointingHandCursor)
         update_btn.clicked.connect(self.update_resolve)
@@ -474,12 +476,12 @@ class SetupWindow(QWidget):
         try:
             tray_helper().launch_resolve_updater()
         except Exception as exc:
-            QMessageBox.warning(self, "Resolve AAC Tools", f"Could not launch the Resolve updater:\n{exc}")
+            QMessageBox.warning(self, "DaVinci Resolve Toolkit", f"Could not launch the Resolve updater:\n{exc}")
             return
         # The installer runs in its own terminal; the version refreshes by itself
         # when you return to this window (changeEvent -> _refresh_resolve_info).
         try:
-            self.resolve_desc_label.setText("Updating Resolve — re-checks when you return here…")
+            self.resolve_desc_label.setText("Updating Resolve, re-checks when you return here…")
         except (RuntimeError, AttributeError):
             pass
 
@@ -490,7 +492,7 @@ class SetupWindow(QWidget):
 
     def _refresh_resolve_info(self):
         # Cheap on every focus: a stat() tells us whether the ~600 MB Resolve
-        # binary changed. Only then do we re-run the expensive strings() scan — so
+        # binary changed. Only then do we re-run the expensive strings() scan, so
         # tool updates, manual updates, and external changes all get picked up.
         if self._recheck_in_flight or not hasattr(self, "resolve_desc_label"):
             return
@@ -586,8 +588,8 @@ class SetupWindow(QWidget):
         autostart_toggle = ToggleSwitch(autostart_on)
         autostart_toggle.toggled.connect(self.set_autostart)
         rows.append(SettingRow(
-            "Start tray at login",
-            "Open the tray icon automatically after you log in.",
+            "Start Toolkit at login",
+            "Launch the toolkit automatically after you log in.",
             autostart_toggle,
         ))
 
@@ -598,7 +600,7 @@ class SetupWindow(QWidget):
         # Mute notifications stays last.
         rows.append(self._config_toggle_row(
             "mute_notifications", "Mute notifications",
-            "Keep the workflow quiet while watchers keep running."))
+            "Keep the workflow quiet, errors still show up."))
 
         for index, row in enumerate(rows):
             card_layout.addWidget(row)
@@ -620,7 +622,7 @@ class SetupWindow(QWidget):
             else:
                 remove_autostart_file()
         except Exception as exc:
-            QMessageBox.warning(self, "Resolve AAC Tools", f"Could not update autostart:\n{exc}")
+            QMessageBox.warning(self, "DaVinci Resolve Toolkit", f"Could not update autostart:\n{exc}")
 
     def page_paths(self):
         page = QWidget()
@@ -671,15 +673,15 @@ class SetupWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        # 1) Export remux — the default, ffmpeg-based approach.
+        # 1) Export remux, the default, ffmpeg-based approach.
         remux_card = Card()
         remux_layout = QVBoxLayout(remux_card)
         remux_layout.setContentsMargins(24, 22, 24, 22)
         remux_layout.setSpacing(6)
         remux_layout.addWidget(make_label("Export remux (recommended)", 18, QFont.DemiBold))
         remux_layout.addWidget(make_label(
-            "Watches Resolve's render outputs and repairs FLAC, PCM, and broken AAC audio to "
-            "browser-friendly AAC in place — the original video stays untouched.",
+            "Converts FLAC and PCM audio in your renders to web-friendly AAC, replacing the "
+            "file in place.",
             13,
             QFont.Normal,
             MUTED,
@@ -694,16 +696,23 @@ class SetupWindow(QWidget):
         ))
         layout.addWidget(remux_card)
 
-        # 2) AAC export plugin — the alternative, Resolve 20 only.
+        # 2) AAC export plugin, the alternative, Resolve 20 only.
         plugin_card = Card()
         plugin_layout = QVBoxLayout(plugin_card)
         plugin_layout.setContentsMargins(24, 22, 24, 22)
         plugin_layout.setSpacing(12)
         plugin_layout.addWidget(make_label("AAC export plugin (Resolve 20 only)", 18, QFont.DemiBold))
         plugin_layout.addWidget(make_label(
-            "Alternative to remux: installs an encoder plugin so Resolve exports AAC directly. "
-            "Resolve 20 only — restart Resolve after changing this.",
+            "Installs an encoder plugin so Resolve exports AAC directly. "
+            "Resolve 20 only, restart Resolve after changing this.",
             13,
+            QFont.Normal,
+            MUTED,
+        ))
+        plugin_layout.addWidget(make_label(
+            "Third-party plugin by Toxblh, installed at your own risk, not maintained by us. "
+            "Source: github.com/Toxblh/davinci-linux-aac-codec",
+            12,
             QFont.Normal,
             MUTED,
         ))
@@ -731,7 +740,8 @@ class SetupWindow(QWidget):
         card_layout.setSpacing(10)
         card_layout.addWidget(make_label("Resolve menu scripts", 18, QFont.DemiBold))
         card_layout.addWidget(make_label(
-            "Optional shortcuts under Workspace > Scripts in Resolve. The tray and watchers work without them.",
+            "Add shortcuts under Workspace → Scripts in Resolve: remux the current clip or all "
+            "media pool clips, restore original sources, and start or stop the watchers.",
             13,
             QFont.Normal,
             MUTED,
@@ -786,7 +796,7 @@ class SetupWindow(QWidget):
             else:
                 install_resolve_menu_scripts()
         except OSError as exc:
-            QMessageBox.warning(self, "Resolve AAC Tools", f"Could not update Resolve menu scripts:\n{exc}")
+            QMessageBox.warning(self, "DaVinci Resolve Toolkit", f"Could not update Resolve menu scripts:\n{exc}")
         self.update_script_state()
 
     def update_script_state(self):
@@ -794,7 +804,7 @@ class SetupWindow(QWidget):
         self.script_status.setText(
             "Installed in your Resolve user scripts folder."
             if installed
-            else "Not installed. This is fine if you use the tray workflow."
+            else "Not installed."
         )
         self.script_btn.setText("Remove Resolve menu scripts" if installed else "Install Resolve menu scripts")
 
@@ -810,7 +820,7 @@ class SetupWindow(QWidget):
                 finally:
                     QApplication.restoreOverrideCursor()
         except Exception as exc:
-            QMessageBox.warning(self, "Resolve AAC Tools", f"Could not update the AAC export plugin:\n{exc}")
+            QMessageBox.warning(self, "DaVinci Resolve Toolkit", f"Could not update the AAC export plugin:\n{exc}")
         self.update_plugin_state()
 
     def update_plugin_state(self):
@@ -838,7 +848,7 @@ class SetupWindow(QWidget):
                 finally:
                     QApplication.restoreOverrideCursor()
         except Exception as exc:
-            QMessageBox.warning(self, "Resolve AAC Tools", f"Could not update the Resolve font fix:\n{exc}")
+            QMessageBox.warning(self, "DaVinci Resolve Toolkit", f"Could not update the Resolve font fix:\n{exc}")
         self.update_font_state()
 
     def update_font_state(self):

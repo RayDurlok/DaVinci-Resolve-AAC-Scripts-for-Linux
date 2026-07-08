@@ -5,27 +5,29 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
 
-  <name>Resolve AAC Tools</name>
-  <summary>Remux AAC audio for DaVinci Resolve and drive it from the system tray</summary>
+  <name>DaVinci Resolve Toolkit</name>
+  <summary>Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray</summary>
 
   <description>
     <p>
-      DaVinci Resolve on Linux cannot import AAC audio directly. Resolve AAC Tools
-      watches your media, remuxes AAC into a Resolve-friendly container, and adds a
-      system tray to control the watchers, launch Resolve, and fix AAC audio in
-      rendered exports.
+      DaVinci Resolve on Linux cannot import AAC audio. DaVinci Resolve Toolkit
+      converts AAC to PCM that Resolve can read on import, and adds a system tray
+      to control it, launch Resolve, and fix AAC audio in your exports. Video is
+      copied, not re-encoded, and your original files stay untouched.
     </p>
     <p>
-      A guided settings window helps configure watchers, export remuxing, cache
+      A guided setup window configures automatic remuxing, export fixes, cache
       paths, native file dialogs, and optional Resolve menu scripts.
     </p>
     <p>Features:</p>
     <ul>
-      <li>Automatic AAC remuxing for imports, the media pool, and the timeline</li>
-      <li>Export watcher that repairs AAC audio in rendered files</li>
+      <li>Automatic AAC remuxing for imports and the media pool</li>
+      <li>Remux the current clip or every media pool clip on demand from Resolve's Scripts menu</li>
+      <li>Restore original sources to undo remuxing for a project at any time</li>
+      <li>Export watcher that rewrites render audio to web-friendly AAC</li>
       <li>System tray with launch actions, toggles, cache settings, and logs</li>
+      <li>Native KDE file dialogs and a Fusion font fix</li>
       <li>Modern welcome and settings window for first-run setup</li>
-      <li>Native KDE file dialogs and Resolve launch helpers</li>
     </ul>
   </description>
 
@@ -50,9 +52,48 @@
     <keyword>Resolve</keyword>
     <keyword>AAC</keyword>
     <keyword>ffmpeg</keyword>
+    <keyword>remux</keyword>
+    <keyword>PCM</keyword>
   </keywords>
 
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/01-welcome.png</image>
+      <caption>Guided setup detects DaVinci Resolve and ffmpeg</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/02-preferences.png</image>
+      <caption>Preferences for automatic AAC remuxing and startup</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/03-paths.png</image>
+      <caption>Choose where remuxed files are stored</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/04-export.png</image>
+      <caption>Export options for web-friendly AAC</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/05-extras.png</image>
+      <caption>Optional Resolve menu scripts and font fix</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/06-native-dialogs.png</image>
+      <caption>Native KDE file dialogs in Resolve</caption>
+    </screenshot>
+  </screenshots>
+
   <releases>
+    <release version="0.1.18" date="2026-07-09">
+      <description>
+        <p>This release rebrands to DaVinci Resolve Toolkit and makes remuxing reversible.</p>
+        <ul>
+          <li>Restore original sources to undo AAC remuxing for a project</li>
+          <li>Remux the current clip or the whole media pool on demand from Resolve's Scripts menu</li>
+          <li>The media pool watcher now stops together with Resolve and the tray</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.17" date="2026-07-08" />
     <release version="0.1.16" date="2026-07-08" />
     <release version="0.1.15" date="2026-07-08" />

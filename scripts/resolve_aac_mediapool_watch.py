@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import subprocess
 import sys
 import time
 import traceback
@@ -21,10 +22,22 @@ from resolve_aac_timeline import (
     log,
     media_pool_item_path,
     output_dir_for_input,
+    record_remux,
 )
 
 
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
+
+
+def resolve_is_running():
+    try:
+        return subprocess.run(
+            ["pgrep", "-f", "/opt/resolve/bin/resolve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+    except Exception:
+        return True  # can't tell -> don't exit prematurely
 
 
 def get_context():
@@ -115,6 +128,7 @@ def replace_media_pool_item(item, output_dir_override=None, cache_dir=None, over
     if not replacer(str(result.output_path)):
         raise RuntimeError(f"Could not replace MediaPool item with {result.output_path}")
 
+    record_remux(result.output_path, input_path)
     log(f"Replaced MediaPool AAC item: {input_path} -> {result.output_path}")
     return result.output_path
 
@@ -202,6 +216,8 @@ def main():
         "signature": None,
         "last_scan_error": None,
     }
+    resolve_seen = False
+    resolve_gone = 0
     while True:
         try:
             changed = scan_once(args, state)
@@ -214,6 +230,16 @@ def main():
                 log("MediaPool watcher waiting: " + error)
                 log(traceback.format_exc())
                 state["last_scan_error"] = error
+
+        # Never outlive Resolve: once Resolve has been up and is gone, stop.
+        if resolve_is_running():
+            resolve_seen = True
+            resolve_gone = 0
+        elif resolve_seen:
+            resolve_gone += 1
+            if resolve_gone >= 3:
+                log("Resolve is no longer running; MediaPool watcher exiting.")
+                break
 
         if args.once or STOP_PATH.exists():
             break

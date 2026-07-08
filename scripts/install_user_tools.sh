@@ -134,7 +134,7 @@ chmod +x "$BIN_DIR/resolve-aac-watch"
 
 cat > "$BIN_DIR/resolve-aac-current-clip" <<EOF
 #!/usr/bin/env bash
-exec python3 "$APP_DIR/resolve_aac_timeline.py" --overwrite "\$@"
+exec python3 "$APP_DIR/resolve_aac_remux_current.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/resolve-aac-current-clip"
 
@@ -190,7 +190,7 @@ cat > "$BIN_DIR/resolve-aac-tray" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 
 if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   exit 0
@@ -217,7 +217,7 @@ if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   exit 0
 fi
 
-LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/resolve_aac_tray.log}"
+LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 setsid "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev/null &
 disown || true
 EOF
@@ -267,8 +267,8 @@ EOF
 cat > "$APPS_DIR/resolve-aac-tray.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Resolve AAC Tools
-Comment=Configure and start Resolve AAC watchers from the system tray
+Name=DaVinci Resolve Toolkit
+Comment=Fix AAC audio and control DaVinci Resolve from the system tray
 Exec=$BIN_DIR/resolve-aac-tray
 Terminal=false
 Categories=AudioVideo;Video;
@@ -278,7 +278,7 @@ cat > "$APPS_DIR/resolve-aac-settings.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Resolve AAC Settings
-Comment=Configure Resolve AAC Tools
+Comment=Configure DaVinci Resolve Toolkit
 Exec=$BIN_DIR/resolve-aac-settings
 Terminal=false
 Categories=AudioVideo;Video;
