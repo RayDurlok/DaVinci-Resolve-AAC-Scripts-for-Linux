@@ -2,7 +2,6 @@
 
 import argparse
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -13,8 +12,8 @@ import urllib.request
 from pathlib import Path
 
 try:
-    from PySide6.QtCore import QObject, QTimer, QUrl
-    from PySide6.QtGui import QAction, QDesktopServices, QIcon
+    from PySide6.QtCore import Qt, QObject, QTimer, QUrl
+    from PySide6.QtGui import QAction, QDesktopServices, QIcon, QPixmap
     from PySide6.QtWidgets import (
         QApplication,
         QFileDialog,
@@ -31,15 +30,20 @@ except ImportError:
     print("  Debian/Ubuntu package names vary; search for PySide6/Qt6 bindings.", file=sys.stderr)
     raise SystemExit(2)
 
+from resolve_aac_config import (
+    CONFIG_DIR,
+    DEFAULT_CACHE_DIR,
+    START_REQUEST_PATH,
+    load_config,
+    save_config,
+    should_show_setup,
+)
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_DIR = Path.home() / ".config" / "resolve-aac-tools"
-CONFIG_PATH = CONFIG_DIR / "config.json"
-START_REQUEST_PATH = CONFIG_DIR / "start_resolve.request"
 AUTOSTART_DIR = Path.home() / ".config" / "autostart"
 AUTOSTART_PATH = AUTOSTART_DIR / "resolve-aac-tray.desktop"
 INSTALLED_TRAY_COMMAND = Path.home() / ".local" / "bin" / "resolve-aac-tray"
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "resolve-aac-remux"
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
 EXPORT_WATCH_LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
@@ -71,31 +75,6 @@ EXPORT_PLUGIN_TARGET_DIR = (
     / "Linux-x86-64"
 )
 EXPORT_PLUGIN_TARGET_FILE = EXPORT_PLUGIN_TARGET_DIR / EXPORT_PLUGIN_FILE
-
-
-def load_config():
-    defaults = {
-        "use_cache": False,
-        "cache_dir": str(DEFAULT_CACHE_DIR),
-        "watch_manual_resolve": True,
-        "remux_exports": False,
-        "intercept_deliver_browse": False,
-        "mute_notifications": False,
-    }
-    try:
-        data = json.loads(CONFIG_PATH.read_text())
-    except Exception:
-        return defaults
-
-    defaults.update({key: data[key] for key in defaults if key in data})
-    if "remux_exports" not in data and "web_export_watch" in data:
-        defaults["remux_exports"] = bool(data["web_export_watch"])
-    return defaults
-
-
-def save_config(config):
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n")
 
 
 def ensure_stacked_timelines_default():
@@ -184,8 +163,27 @@ class ResolveAacTray(QObject):
         self.intercept_watcher_process = None
         self.intercept_watcher_log_file = None
         self.manual_resolve_was_running = False
+        self.setup_window = None
 
-        icon = QIcon.fromTheme("media-playback-start")
+        icon = None
+        for icon_path in (
+            Path("/usr/share/icons/hicolor/512x512/apps/io.github.raydurlok.ResolveAacTools.png"),
+            SCRIPT_DIR / "resolve-aac-tools-icon-512.png",
+            SCRIPT_DIR.parent / "resolve-aac-tools-icon-512.png",
+            SCRIPT_DIR / "resolve-aac-tools-icon.png",
+            SCRIPT_DIR.parent / "resolve-aac-tools-icon.png",
+        ):
+            if icon_path.exists():
+                pixmap = QPixmap(str(icon_path))
+                if not pixmap.isNull():
+                    # Scale down: a 3000x3000 tray pixmap sent over DBus can crash
+                    # plasmashell's system tray. Keep it small.
+                    if max(pixmap.width(), pixmap.height()) > 128:
+                        pixmap = pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    icon = QIcon(pixmap)
+                    break
+        if icon is None or icon.isNull():
+            icon = QIcon.fromTheme("media-playback-start")
         if icon.isNull():
             icon = self.app.style().standardIcon(QStyle.SP_MediaPlay)
 
@@ -257,6 +255,13 @@ class ResolveAacTray(QObject):
         self.mute_notifications_action.toggled.connect(self.set_mute_notifications)
         self.menu.addAction(self.mute_notifications_action)
 
+        self.logging_action = QAction("Enable logging")
+        self.logging_action.setCheckable(True)
+        self.logging_action.setChecked(bool(self.config.get("logging_enabled", True)))
+        self.logging_action.setToolTip("Write diagnostic logs to /tmp. Turn off to keep things quiet on disk. Restart watchers to apply.")
+        self.logging_action.toggled.connect(self.set_logging)
+        self.menu.addAction(self.logging_action)
+
         self.menu.addSeparator()
 
         self.cache_action = QAction("Use single cache folder")
@@ -306,6 +311,11 @@ class ResolveAacTray(QObject):
         self.open_log_action.triggered.connect(lambda: self.open_path(LOG_PATH))
         self.menu.addAction(self.open_log_action)
 
+        self.settings_action = QAction("Settings...")
+        self.settings_action.setToolTip("Open the full Resolve AAC Tools setup and preferences window.")
+        self.settings_action.triggered.connect(self.open_settings)
+        self.menu.addAction(self.settings_action)
+
         self.menu.addSeparator()
 
         self.quit_action = QAction("Quit")
@@ -336,6 +346,8 @@ class ResolveAacTray(QObject):
 
         if start_resolve:
             QTimer.singleShot(250, self.start_resolve)
+        elif should_show_setup(self.config):
+            QTimer.singleShot(350, lambda: self.open_settings(first_run=True))
 
     def notify(self, title, message):
         if self.config["mute_notifications"]:
@@ -344,6 +356,61 @@ class ResolveAacTray(QObject):
 
     def error(self, title, message):
         QMessageBox.warning(None, title, message)
+
+    def open_settings(self, first_run=False):
+        if self.setup_window is not None:
+            self.setup_window.raise_()
+            self.setup_window.activateWindow()
+            return
+
+        from resolve_aac_setup import SetupWindow, apply_app_font
+
+        apply_app_font(self.app)
+        self.setup_window = SetupWindow(first_run=first_run)
+        self.setup_window.settings_saved.connect(self.apply_saved_settings)
+        self.setup_window.destroyed.connect(lambda *_args: setattr(self, "setup_window", None))
+        self.setup_window.show()
+        self.setup_window.raise_()
+        self.setup_window.activateWindow()
+
+    def apply_saved_settings(self, saved_config):
+        previous = dict(self.config)
+        self.config = saved_config
+
+        for action, key in [
+            (self.watch_manual_action, "watch_manual_resolve"),
+            (self.remux_exports_action, "remux_exports"),
+            (self.intercept_browse_action, "intercept_deliver_browse"),
+            (self.mute_notifications_action, "mute_notifications"),
+            (self.cache_action, "use_cache"),
+        ]:
+            action.blockSignals(True)
+            action.setChecked(bool(self.config[key]))
+            action.blockSignals(False)
+
+        if bool(previous.get("remux_exports")) != bool(self.config["remux_exports"]):
+            if self.config["remux_exports"]:
+                self.start_export_watcher()
+            else:
+                self.stop_export_watcher()
+
+        if bool(previous.get("intercept_deliver_browse")) != bool(self.config["intercept_deliver_browse"]):
+            if self.config["intercept_deliver_browse"]:
+                self.ensure_native_dialog_plugin()
+            else:
+                self.remove_native_dialog_plugin()
+            self.reconcile_intercept_watcher()
+
+        cache_changed = (
+            bool(previous.get("use_cache")) != bool(self.config["use_cache"])
+            or previous.get("cache_dir") != self.config.get("cache_dir")
+        )
+        if cache_changed and self.watcher_is_running() and self.resolve_is_running():
+            self.stop_watcher()
+            QTimer.singleShot(1000, self.start_watcher_for_manual_resolve)
+            self.notify("Resolve AAC Tools", "Restarting watcher with updated output settings.")
+
+        self.update_status()
 
     def launcher_path(self):
         return SCRIPT_DIR / "resolve-with-aac-mediapool-watch.sh"
@@ -379,8 +446,16 @@ class ResolveAacTray(QObject):
     def fusion_font_path_string(self):
         return ";".join(self.fusion_font_paths())
 
+    def _log_file(self, path):
+        # Honour the "Enable logging" setting: write to the log file when on,
+        # otherwise send output to /dev/null (a real, closable file object).
+        target = path if self.config.get("logging_enabled", True) else Path(os.devnull)
+        return target.open("a")
+
     def current_env(self):
         env = os.environ.copy()
+        if not self.config.get("logging_enabled", True):
+            env["RESOLVE_AAC_NO_LOG"] = "1"
         if self.resolve_font_fix_installed():
             font_paths = [path for path in env.get("FUSION_FONTS", "").split(";") if path]
             for path in self.fusion_font_paths():
@@ -789,7 +864,7 @@ Name[en_US]=DaVinci Resolve
             pass
 
         try:
-            log_file = LOG_PATH.open("a")
+            log_file = self._log_file(LOG_PATH)
             self.watcher_process = subprocess.Popen(
                 self.watcher_args(),
                 stdout=log_file,
@@ -836,7 +911,7 @@ Name[en_US]=DaVinci Resolve
             pass
 
         try:
-            self.export_watcher_log_file = EXPORT_WATCH_LOG_PATH.open("a")
+            self.export_watcher_log_file = self._log_file(EXPORT_WATCH_LOG_PATH)
             self.export_watcher_process = subprocess.Popen(
                 self.export_watcher_args(),
                 stdout=self.export_watcher_log_file,
@@ -900,6 +975,10 @@ Name[en_US]=DaVinci Resolve
         self.config["mute_notifications"] = bool(enabled)
         save_config(self.config)
         self.update_status()
+
+    def set_logging(self, enabled):
+        self.config["logging_enabled"] = bool(enabled)
+        save_config(self.config)
 
     def intercept_watcher_path(self):
         return SCRIPT_DIR / "resolve_render_location_watch.py"
@@ -1019,7 +1098,7 @@ Name[en_US]=DaVinci Resolve
             pass
 
         try:
-            self.intercept_watcher_log_file = INTERCEPT_WATCH_LOG_PATH.open("a")
+            self.intercept_watcher_log_file = self._log_file(INTERCEPT_WATCH_LOG_PATH)
             self.intercept_watcher_process = subprocess.Popen(
                 self.intercept_watcher_args(),
                 stdout=self.intercept_watcher_log_file,
@@ -1294,7 +1373,7 @@ Name[en_US]=DaVinci Resolve
 
     def on_activated(self, reason):
         if reason == QSystemTrayIcon.Trigger:
-            self.start_resolve()
+            self.open_settings()
 
     def quit(self):
         self.stop_export_watcher(notify=False)
