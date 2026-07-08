@@ -7,3 +7,4 @@ Icon=io.github.raydurlok.ResolveAacTools
 Terminal=true
 Categories=Utility;
 Keywords=DaVinci;Resolve;Update;Installer;Blackmagic;
+NoDisplay=true

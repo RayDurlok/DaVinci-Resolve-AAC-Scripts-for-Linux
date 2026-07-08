@@ -6,3 +6,4 @@ Exec=resolve-aac-start
 Icon=io.github.raydurlok.ResolveAacTools
 Terminal=false
 Categories=AudioVideo;Video;
+NoDisplay=true

@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           resolve-aac-tools
-Version:        0.1.12
+Version:        0.1.13
 Release:        1%{?dist}
 Summary:        AAC audio remux tools and system tray for DaVinci Resolve on Linux
 
@@ -209,6 +209,9 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.13-1
+- Show only the main "Resolve AAC Tools" menu entry; hide secondary launchers
+
 * Wed Jul 08 2026 RayDurlok <noreply@example.com> - 0.1.12-1
 - Ship the app icon (Discover tile, menus, tray)
 - Modern setup/settings window; fix ProRes/.mov export remux

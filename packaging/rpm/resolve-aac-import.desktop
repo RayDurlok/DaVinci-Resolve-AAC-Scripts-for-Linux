@@ -7,3 +7,4 @@ Icon=io.github.raydurlok.ResolveAacTools
 Terminal=true
 Categories=AudioVideo;Video;
 MimeType=video/mp4;video/quicktime;audio/mp4;audio/aac;audio/x-aac;video/x-matroska;
+NoDisplay=true
