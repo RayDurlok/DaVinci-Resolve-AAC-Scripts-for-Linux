@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.2.1
+Version:        0.2.2
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -28,8 +28,10 @@ BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
 
 Requires:       python3
-# ffmpeg (with the aac decoder) comes from RPM Fusion on Fedora, not the base repo.
-Requires:       ffmpeg
+# Require the binaries by path so either Fedora's ffmpeg-free or RPM Fusion's
+# ffmpeg satisfies it (the name "ffmpeg" is only provided by RPM Fusion).
+Requires:       /usr/bin/ffmpeg
+Requires:       /usr/bin/ffprobe
 Requires:       python3-gobject
 Requires:       kdialog
 Requires:       python3-pyside6
@@ -211,6 +213,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.2-1
+- Require the ffmpeg/ffprobe binaries by path instead of the ffmpeg package name,
+  so the package installs on stock Fedora (ffmpeg-free) as well as with RPM Fusion
+
 * Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.1-1
 - Rename the RPM package to davinci-resolve-toolkit so it matches the app name
   and Copr project (install with: dnf install davinci-resolve-toolkit). The

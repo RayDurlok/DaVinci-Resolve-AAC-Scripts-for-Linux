@@ -6,6 +6,13 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-09
+
+### Fixed
+- Require the `ffmpeg`/`ffprobe` binaries by path instead of the `ffmpeg` package
+  name, so `dnf install` works on stock Fedora (`ffmpeg-free`), not only with RPM
+  Fusion enabled.
+
 ## [0.2.1] - 2026-07-09
 
 ### Changed
