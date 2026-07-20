@@ -37,7 +37,7 @@ def run():
     from types import SimpleNamespace
 
     from resolve_aac_config import load_config
-    from resolve_aac_mediapool_watch import scan_once
+    from resolve_aac_mediapool_watch import new_scan_state, scan_once
 
     cfg = load_config()
     cache_dir = Path(cfg["cache_dir"]).expanduser() if cfg.get("use_cache") else None
@@ -48,12 +48,7 @@ def run():
         quiet=False,
         retry=False,
     )
-    state = {
-        "processed": set(),
-        "source_cache": {},
-        "signature": None,
-        "last_scan_error": None,
-    }
+    state = new_scan_state()
     changed = scan_once(args, state)
     return f"Remuxed {changed} AAC clip(s) in the media pool."
 

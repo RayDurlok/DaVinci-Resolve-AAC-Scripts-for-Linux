@@ -44,6 +44,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 AUTOSTART_DIR = Path.home() / ".config" / "autostart"
 AUTOSTART_PATH = AUTOSTART_DIR / "resolve-aac-tray.desktop"
 INSTALLED_TRAY_COMMAND = Path.home() / ".local" / "bin" / "resolve-aac-tray"
+SYSTEM_TRAY_COMMAND = Path("/usr/bin/resolve-aac-tray")
 LOG_PATH = Path("/tmp/resolve_aac_launcher.log")
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
 EXPORT_WATCH_LOG_PATH = Path("/tmp/resolve_aac_export_watch.log")
@@ -110,6 +111,8 @@ def ensure_stacked_timelines_default():
 def tray_command():
     if INSTALLED_TRAY_COMMAND.exists():
         return INSTALLED_TRAY_COMMAND
+    if SYSTEM_TRAY_COMMAND.exists():
+        return SYSTEM_TRAY_COMMAND
     return Path(sys.argv[0]).resolve()
 
 
@@ -156,6 +159,11 @@ class ResolveAacTray(QObject):
         super().__init__()
         self.app.setQuitOnLastWindowClosed(False)
         self.config = load_config()
+        if autostart_enabled():
+            try:
+                write_autostart_file()
+            except OSError:
+                pass
         try:
             ensure_stacked_timelines_default()
         except OSError:

@@ -114,9 +114,11 @@ Resolve on Linux also can't export AAC directly:
 ## Optional extras
 
 - **Native KDE file dialogs** (off by default): routes Resolve's file dialogs
-  (Export Still, Import, Deliver destination, Media relink) through the native
-  KDE/portal picker. Needs `python3-gobject` and `kdialog` (installer adds them);
-  restart Resolve after toggling.
+  (Export Still, Import and Deliver destination) through the native KDE/portal
+  picker. Media relinking stays in Resolve because its scripting API cannot
+  reliably distinguish one selected bin from multiple selected bins. Needs
+  `python3-gobject` and `kdialog` (installer adds them); restart Resolve after
+  toggling.
 - **Resolve font fix**: one-time install so Resolve/Fusion see fonts from
   `/usr/local/share/fonts`, `~/.local/share/fonts`, and `~/.fonts`.
 - **DaVinci Resolve Updater** (`resolve-update-from-downloads`): installs the

@@ -27,6 +27,8 @@ from resolve_aac_timeline import (
 
 
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
+RETRY_BASE_SECONDS = 5.0
+RETRY_MAX_SECONDS = 60.0
 
 
 def resolve_is_running():
@@ -97,6 +99,22 @@ def media_pool_signature(items):
     return tuple(sorted(item_process_key(item) for item in items))
 
 
+def retry_delay(failure_count):
+    exponent = min(max(0, failure_count - 1), 4)
+    return min(RETRY_BASE_SECONDS * (2 ** exponent), RETRY_MAX_SECONDS)
+
+
+def new_scan_state():
+    return {
+        "processed": set(),
+        "source_cache": {},
+        "signature": None,
+        "last_scan_error": None,
+        "failures": {},
+        "retry_after": {},
+    }
+
+
 def replace_media_pool_item(item, output_dir_override=None, cache_dir=None, overwrite=False, quiet=False):
     raw_path = media_pool_item_path(item)
     if not raw_path:
@@ -137,15 +155,22 @@ def scan_once(args, state):
     media_pool = get_context()
     items = list(iter_media_pool_items(media_pool.GetRootFolder()))
     signature = media_pool_signature(items)
+    now = time.monotonic()
+    active_keys = {item_process_key(item) for item in items}
+    for name in ("failures", "retry_after"):
+        state[name] = {key: value for key, value in state[name].items() if key in active_keys}
+    retry_due = any(deadline <= now for deadline in state["retry_after"].values())
     changed = 0
 
-    if signature == state["signature"] and not args.retry:
+    if signature == state["signature"] and not args.retry and not retry_due:
         return 0
     state["signature"] = signature
 
     for item in items:
         key = item_process_key(item)
         if key in state["processed"] and not args.retry:
+            continue
+        if state["retry_after"].get(key, 0) > now and not args.retry:
             continue
 
         try:
@@ -177,14 +202,19 @@ def scan_once(args, state):
                 quiet=args.quiet,
             )
             state["processed"].add(key)
+            state["failures"].pop(key, None)
+            state["retry_after"].pop(key, None)
             if output_path:
                 state["source_cache"][path_key] = "converted"
                 changed += 1
             else:
                 state["source_cache"][path_key] = "non-aac"
         except Exception as exc:
-            state["processed"].add(key)
-            log("MediaPool watcher item failed: " + str(exc))
+            failures = state["failures"].get(key, 0) + 1
+            delay = retry_delay(failures)
+            state["failures"][key] = failures
+            state["retry_after"][key] = time.monotonic() + delay
+            log(f"MediaPool watcher item failed (retry in {delay:.0f}s): {exc}")
             log(traceback.format_exc())
 
     return changed
@@ -210,12 +240,7 @@ def main():
     log(f"Log: {LOG_PATH}")
     log(f"Stop file: {STOP_PATH}")
 
-    state = {
-        "processed": set(),
-        "source_cache": {},
-        "signature": None,
-        "last_scan_error": None,
-    }
+    state = new_scan_state()
     resolve_seen = False
     resolve_gone = 0
     while True:

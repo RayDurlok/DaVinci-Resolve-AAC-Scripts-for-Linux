@@ -576,7 +576,7 @@ class SetupWindow(QWidget):
                 "Automatically remux AAC-audio video when you import it into the media pool."),
             self._config_toggle_row(
                 "intercept_deliver_browse", "Native KDE file dialogs",
-                "Use Dolphin's native file dialogs instead of Resolve's old-fashioned file browser."),
+                "Use native KDE dialogs for standard file pickers and the Deliver destination. Relink stays in Resolve."),
         ]
 
         # Autostart is file-based (XDG autostart), separate from config.json.

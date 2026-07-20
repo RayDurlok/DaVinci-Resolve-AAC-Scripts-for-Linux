@@ -6,6 +6,19 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+### Changed
+- Media relinking now always uses Resolve's own dialog. Resolve's scripting API
+  does not expose selected bins, so the native intercept could not safely tell a
+  current-bin relink from a multi-bin relink.
+
+### Fixed
+- Decode native dialog output as UTF-8 and keep the Deliver dialog watcher alive
+  if an intercept fails instead of restarting it every second.
+- Retry transient MediaPool `ReplaceClip` failures with bounded backoff while
+  reusing an already-created remux.
+- Refresh an enabled login autostart entry to the installed user or system
+  launcher, avoiding stale development-directory paths after package installs.
+
 ## [0.2.2] - 2026-07-09
 
 ### Fixed

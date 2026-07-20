@@ -32,7 +32,6 @@ def get_resolve():
 # file-dialog detector recognises it (it matches caption + resource_class against those
 # markers). The word can be overridden via env, but keep a marker word in it.
 DIALOG_TITLE = os.environ.get("RESOLVE_RENDER_DIALOG_TITLE", "Save to location")
-FOLDER_DIALOG_TITLE = os.environ.get("RESOLVE_FOLDER_DIALOG_TITLE", "Select folder")
 
 
 def _portal_save_file(title: str, start_dir: str) -> str | None:
@@ -89,56 +88,6 @@ def _portal_save_file(title: str, start_dir: str) -> str | None:
     return None
 
 
-def _portal_select_folder(title: str, start_dir: str) -> str | None:
-    """Open a native folder picker through xdg-desktop-portal."""
-    import gi
-    gi.require_version("Gio", "2.0")
-    gi.require_version("GLib", "2.0")
-    from gi.repository import Gio, GLib
-    from urllib.parse import unquote, urlparse
-
-    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    token = "resolve_folder_%d" % os.getpid()
-    sender = bus.get_unique_name()[1:].replace(".", "_")
-    handle_path = "/org/freedesktop/portal/desktop/request/%s/%s" % (sender, token)
-
-    loop = GLib.MainLoop()
-    result: dict = {}
-
-    def on_response(_conn, _sender, _path, _iface, _signal, params):
-        response, results = params.unpack()
-        result["response"] = response
-        result["uris"] = results.get("uris", [])
-        loop.quit()
-
-    sub_id = bus.signal_subscribe(
-        "org.freedesktop.portal.Desktop", "org.freedesktop.portal.Request",
-        "Response", handle_path, None, Gio.DBusSignalFlags.NONE, on_response,
-    )
-    options = {
-        "handle_token": GLib.Variant("s", token),
-        "directory": GLib.Variant("b", True),
-        "current_folder": GLib.Variant("ay", (start_dir.rstrip("/") + "/").encode("utf-8") + b"\0"),
-    }
-    try:
-        bus.call_sync(
-            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
-            "org.freedesktop.portal.FileChooser", "OpenFile",
-            GLib.Variant("(ssa{sv})", ("", title, options)),
-            GLib.VariantType("(o)"), Gio.DBusCallFlags.NONE, -1, None,
-        )
-        GLib.timeout_add_seconds(300, lambda: (loop.quit(), False)[1])
-        loop.run()
-    finally:
-        bus.signal_unsubscribe(sub_id)
-
-    if result.get("response") == 0 and result.get("uris"):
-        parsed = urlparse(result["uris"][0])
-        if parsed.scheme == "file":
-            return unquote(parsed.path)
-    return None
-
-
 def pick_save_path(start_dir: str) -> str | None:
     """Classic 'Save As' dialog (location + name field, InputPilot-compatible).
 
@@ -160,36 +109,13 @@ def pick_save_path(start_dir: str) -> str | None:
     else:
         notify("No file dialog found (portal/kdialog/zenity missing).", critical=True)
         return None
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        return None
-    path = proc.stdout.strip()
-    return path or None
-
-
-def pick_folder_path(start_dir: str, title: str = FOLDER_DIALOG_TITLE) -> str | None:
-    """Native folder picker used for Resolve relink/source-folder dialogs."""
-    start = start_dir.rstrip("/") + "/"
-    if shutil.which("kdialog"):
-        cmd = ["kdialog", "--title", title, "--getexistingdirectory", start]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            return None
-        path = proc.stdout.strip()
-        return path or None
-
-    try:
-        return _portal_select_folder(title, start_dir)
-    except Exception:
-        pass
-
-    if shutil.which("zenity"):
-        cmd = ["zenity", "--file-selection", "--directory", f"--title={title}",
-               f"--filename={start}"]
-    else:
-        notify("No folder dialog found (portal/kdialog/zenity missing).", critical=True)
-        return None
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     if proc.returncode != 0:
         return None
     path = proc.stdout.strip()
