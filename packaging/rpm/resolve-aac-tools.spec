@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.2.2
+Version:        0.2.3
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -213,6 +213,13 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Mon Jul 20 2026 RayDurlok <noreply@example.com> - 0.2.3-1
+- Keep MediaPool replacements responsive by retrying transient Resolve API
+  failures with bounded backoff and reusing completed remux files
+- Keep Media relinking in Resolve's own dialog for reliable multi-bin handling
+- Fix Unicode paths in native dialogs and remember the last Deliver destination
+- Refresh stale tray autostart paths after package installation
+
 * Thu Jul 09 2026 RayDurlok <noreply@example.com> - 0.2.2-1
 - Require the ffmpeg/ffprobe binaries by path instead of the ffmpeg package name,
   so the package installs on stock Fedora (ffmpeg-free) as well as with RPM Fusion

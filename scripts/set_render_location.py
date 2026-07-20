@@ -148,20 +148,25 @@ def load_start_dir(argv_start: str | None) -> str:
     if argv_start and os.path.isdir(argv_start):
         return argv_start
     try:
-        last = STATE_FILE.read_text().strip()
+        last = STATE_FILE.read_text(encoding="utf-8").strip()
         if last and os.path.isdir(last):
             return last
-    except OSError:
+    except (OSError, UnicodeError):
         pass
     return str(Path.home())
 
 
 def save_start_dir(path: str):
+    temp_path = STATE_FILE.with_name(f".{STATE_FILE.name}.{os.getpid()}.tmp")
     try:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(path)
-    except OSError:
-        pass
+        temp_path.write_text(path + "\n", encoding="utf-8")
+        os.replace(temp_path, STATE_FILE)
+    except (OSError, UnicodeError):
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
 
 
 def main() -> int:

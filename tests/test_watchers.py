@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -74,6 +75,31 @@ class DialogTests(unittest.TestCase):
             self.assertEqual(set_render_location.pick_save_path("/tmp"), "/tmp/output.mov")
             self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
             self.assertEqual(run.call_args.kwargs["errors"], "replace")
+
+    def test_last_render_directory_supports_unicode(self):
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            root = Path(raw_tmp)
+            target = root / "Exports mit Umlaut ö"
+            target.mkdir()
+            state_file = root / "last_render_location"
+
+            with patch.object(set_render_location, "STATE_FILE", state_file):
+                set_render_location.save_start_dir(str(target))
+                self.assertEqual(state_file.read_bytes(), (str(target) + "\n").encode("utf-8"))
+                self.assertEqual(set_render_location.load_start_dir(None), str(target))
+
+    def test_failed_state_write_keeps_previous_directory(self):
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            state_file = Path(raw_tmp) / "last_render_location"
+            state_file.write_text("/previous\n", encoding="utf-8")
+
+            with (
+                patch.object(set_render_location, "STATE_FILE", state_file),
+                patch.object(Path, "write_text", side_effect=OSError("disk full")),
+            ):
+                set_render_location.save_start_dir("/new")
+
+            self.assertEqual(state_file.read_text(encoding="utf-8"), "/previous\n")
 
 
 if __name__ == "__main__":

@@ -85,6 +85,17 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.3" date="2026-07-20">
+      <description>
+        <p>Improves MediaPool reliability and native dialog handling.</p>
+        <ul>
+          <li>Retries temporary Resolve API failures without remuxing files again</li>
+          <li>Keeps multi-bin relinking in Resolve's own dialog</li>
+          <li>Remembers Deliver folders containing non-ASCII characters</li>
+          <li>Repairs stale tray autostart paths after package installation</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.2" date="2026-07-09">
       <description>
         <p>Installs on stock Fedora without RPM Fusion.</p>

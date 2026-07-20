@@ -6,12 +6,17 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-20
+
 ### Changed
 - Media relinking now always uses Resolve's own dialog. Resolve's scripting API
   does not expose selected bins, so the native intercept could not safely tell a
   current-bin relink from a multi-bin relink.
 
 ### Fixed
+- Remember the last Deliver destination when its path contains non-ASCII
+  characters. Picker state is now stored explicitly as UTF-8 and replaced
+  atomically, so a failed write cannot erase the previous directory.
 - Decode native dialog output as UTF-8 and keep the Deliver dialog watcher alive
   if an intercept fails instead of restarting it every second.
 - Retry transient MediaPool `ReplaceClip` failures with bounded backoff while
