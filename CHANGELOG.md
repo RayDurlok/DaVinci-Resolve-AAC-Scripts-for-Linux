@@ -6,6 +6,14 @@ file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-26
+
+### Fixed
+- Stop the long-running MediaPool watcher from calling Resolve's leaking
+  unkeyed `GetClipProperty()` API during every poll. Add a 256 MiB self-recycle
+  guard for native scripting leaks and restart unexpectedly exited watchers
+  without overriding a manual **Stop Watcher** action.
+
 ## [0.2.3] - 2026-07-20
 
 ### Changed

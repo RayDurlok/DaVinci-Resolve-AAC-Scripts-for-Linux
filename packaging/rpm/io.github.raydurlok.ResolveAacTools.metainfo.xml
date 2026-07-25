@@ -85,6 +85,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.4" date="2026-07-26">
+      <description>
+        <p>Fixes excessive memory growth in the MediaPool watcher.</p>
+        <ul>
+          <li>Avoids a leaking unkeyed property call in Resolve's Linux scripting API</li>
+          <li>Adds a 256 MiB watcher recycle guard for future native leaks</li>
+          <li>Restarts unexpectedly exited watchers without overriding a manual stop</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.3" date="2026-07-20">
       <description>
         <p>Improves MediaPool reliability and native dialog handling.</p>

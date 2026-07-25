@@ -170,6 +170,7 @@ class ResolveAacTray(QObject):
             pass
         self.process = None
         self.watcher_process = None
+        self.watcher_restart_suppressed = False
         self.export_watcher_process = None
         self.export_watcher_log_file = None
         self.intercept_watcher_process = None
@@ -862,6 +863,7 @@ Name[en_US]=DaVinci Resolve
             return
 
         try:
+            self.watcher_restart_suppressed = False
             self.process = subprocess.Popen([str(launcher)], env=self.current_env())
         except Exception as exc:
             self.error("Could not start Resolve", str(exc))
@@ -897,6 +899,7 @@ Name[en_US]=DaVinci Resolve
                 stderr=subprocess.STDOUT,
                 env=self.current_env(),
             )
+            self.watcher_restart_suppressed = False
         except Exception as exc:
             self.error("Could not start watcher", str(exc))
             return
@@ -917,6 +920,7 @@ Name[en_US]=DaVinci Resolve
             return
 
         self.watcher_process = None
+        self.watcher_restart_suppressed = True
         self.notify("DaVinci Resolve Toolkit", "Watcher stop requested.")
         self.update_status()
 
@@ -1380,12 +1384,22 @@ Name[en_US]=DaVinci Resolve
             return
 
         if self.process and self.process.poll() is None:
+            if (
+                self.resolve_is_running()
+                and not self.watcher_is_running()
+                and not self.watcher_restart_suppressed
+            ):
+                self.start_watcher_for_manual_resolve()
             self.manual_resolve_was_running = True
             return
 
         resolve_running = self.resolve_is_running()
         if resolve_running:
             if not self.manual_resolve_was_running:
+                self.watcher_restart_suppressed = False
+                self.start_watcher_for_manual_resolve()
+            elif not self.watcher_is_running() and not self.watcher_restart_suppressed:
+                self.watcher_process = None
                 self.start_watcher_for_manual_resolve()
             self.manual_resolve_was_running = True
             return
@@ -1396,6 +1410,7 @@ Name[en_US]=DaVinci Resolve
             self.watcher_process = None
 
         self.manual_resolve_was_running = False
+        self.watcher_restart_suppressed = False
 
     def restore_original_sources(self):
         script = SCRIPT_DIR / "resolve_aac_restore.py"

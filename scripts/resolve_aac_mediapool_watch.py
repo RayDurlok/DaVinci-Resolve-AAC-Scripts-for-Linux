@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -15,12 +16,10 @@ from resolve_aac_import import convert, get_resolve
 from resolve_aac_timeline import (
     DEFAULT_OUTPUT_SUBDIR,
     LOG_PATH,
-    clip_property,
     is_generated_remux_path,
     iter_media_pool_items,
     cache_output_dir_for_input,
     log,
-    media_pool_item_path,
     output_dir_for_input,
     record_remux,
 )
@@ -29,6 +28,7 @@ from resolve_aac_timeline import (
 STOP_PATH = Path("/tmp/resolve_aac_mediapool_watch.stop")
 RETRY_BASE_SECONDS = 5.0
 RETRY_MAX_SECONDS = 60.0
+DEFAULT_MAX_RSS_MIB = 256
 
 
 def resolve_is_running():
@@ -59,6 +59,26 @@ def get_context():
     return media_pool
 
 
+def media_pool_item_path(item):
+    """Read only the path property.
+
+    Resolve's Linux scripting bridge leaks a large native allocation whenever
+    GetClipProperty() is called without a key. A polling watcher must therefore
+    never use the compatibility fallback from the one-shot timeline helpers.
+    """
+    try:
+        return item.GetClipProperty("File Path") or ""
+    except Exception:
+        return ""
+
+
+def direct_clip_property(item, key):
+    try:
+        return item.GetClipProperty(key) or ""
+    except Exception:
+        return ""
+
+
 def item_key(item):
     try:
         media_id = item.GetMediaId()
@@ -84,7 +104,7 @@ def item_online_state(item):
     if not is_online_media_path(path):
         return "offline"
 
-    status = str(clip_property(item, "Status") or "").lower()
+    status = str(direct_clip_property(item, "Status")).lower()
     if "offline" in status:
         return "offline"
 
@@ -102,6 +122,29 @@ def media_pool_signature(items):
 def retry_delay(failure_count):
     exponent = min(max(0, failure_count - 1), 4)
     return min(RETRY_BASE_SECONDS * (2 ** exponent), RETRY_MAX_SECONDS)
+
+
+def current_rss_mib():
+    try:
+        resident_pages = int(Path("/proc/self/statm").read_text().split()[1])
+        return resident_pages * os.sysconf("SC_PAGE_SIZE") / (1024 * 1024)
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+
+def recycle_if_memory_high(max_rss_mib):
+    if max_rss_mib <= 0:
+        return False
+    rss_mib = current_rss_mib()
+    if rss_mib < max_rss_mib:
+        return False
+
+    log(
+        f"MediaPool watcher reached {rss_mib:.0f} MiB RSS "
+        f"(limit {max_rss_mib} MiB); recycling process."
+    )
+    os.execv(sys.executable, [sys.executable, *sys.argv])
+    return True
 
 
 def new_scan_state():
@@ -230,6 +273,12 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite converted media")
     parser.add_argument("-o", "--output-dir", type=Path, help=f"Override output directory. Default: <source folder>/{DEFAULT_OUTPUT_SUBDIR}")
     parser.add_argument("--cache-dir", type=Path, help="Store remuxes in an external cache instead of next to source media")
+    parser.add_argument(
+        "--max-rss-mib",
+        type=int,
+        default=DEFAULT_MAX_RSS_MIB,
+        help="Recycle the watcher at this RSS limit. Set to 0 to disable.",
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -249,6 +298,7 @@ def main():
             state["last_scan_error"] = None
             if changed:
                 log(f"MediaPool watcher replaced {changed} AAC item(s)")
+            recycle_if_memory_high(args.max_rss_mib)
         except Exception as exc:
             error = str(exc)
             if error != state["last_scan_error"]:

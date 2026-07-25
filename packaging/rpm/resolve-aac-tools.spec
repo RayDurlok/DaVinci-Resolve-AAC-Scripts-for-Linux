@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.2.3
+Version:        0.2.4
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -213,6 +213,12 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Sun Jul 26 2026 RayDurlok <noreply@example.com> - 0.2.4-1
+- Stop the MediaPool polling loop from triggering a large native memory leak in
+  Resolve's unkeyed GetClipProperty API
+- Self-recycle the watcher above 256 MiB RSS as a safety guard
+- Restart unexpectedly exited watchers while respecting a manual stop
+
 * Mon Jul 20 2026 RayDurlok <noreply@example.com> - 0.2.3-1
 - Keep MediaPool replacements responsive by retrying transient Resolve API
   failures with bounded backoff and reusing completed remux files
