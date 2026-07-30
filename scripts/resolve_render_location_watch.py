@@ -16,6 +16,7 @@ import fcntl
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -56,13 +57,17 @@ def log(quiet, *parts):
 
 
 def _xprop(args):
-    return subprocess.run(
-        ["xprop", *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    ).stdout
+    try:
+        return subprocess.run(
+            ["xprop", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        ).stdout
+    except OSError:
+        return ""
 
 
 def find_intercept_window(titles):
@@ -90,8 +95,88 @@ def mediapool_watcher_running():
 
 
 def send_escape():
+    if not shutil.which("ydotool"):
+        return False
     env = dict(os.environ, YDOTOOL_SOCKET=YDOTOOL_SOCKET)
-    subprocess.run(["ydotool", "key", f"{KEY_ESC}:1", f"{KEY_ESC}:0"], env=env, check=False)
+    try:
+        subprocess.run(
+            ["ydotool", "key", f"{KEY_ESC}:1", f"{KEY_ESC}:0"],
+            env=env,
+            check=False,
+        )
+    except OSError:
+        return False
+    return True
+
+
+def close_window_via_ewmh(wid):
+    """Ask KWin to close one exact X11/XWayland window."""
+    try:
+        from Xlib import X, display
+        from Xlib.protocol import event
+    except Exception:
+        return False
+    disp = None
+    try:
+        disp = display.Display()
+        root = disp.screen().root
+        window = disp.create_resource_object("window", int(wid, 16))
+        close_atom = disp.intern_atom("_NET_CLOSE_WINDOW")
+        client_message = event.ClientMessage(
+            window=window,
+            client_type=close_atom,
+            data=(32, [X.CurrentTime, 2, 0, 0, 0]),
+        )
+        root.send_event(
+            client_message,
+            event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask,
+        )
+        disp.flush()
+        disp.sync()
+        return True
+    except Exception:
+        return False
+    finally:
+        if disp is not None:
+            try:
+                disp.close()
+            except Exception:
+                pass
+
+
+def activate_window_via_x(wid):
+    """Activate a Resolve dialog before the final Escape-key fallback."""
+    try:
+        from Xlib import X, display
+        from Xlib.protocol import event
+    except Exception:
+        return False
+    disp = None
+    try:
+        disp = display.Display()
+        root = disp.screen().root
+        window = disp.create_resource_object("window", int(wid, 16))
+        active_atom = disp.intern_atom("_NET_ACTIVE_WINDOW")
+        client_message = event.ClientMessage(
+            window=window,
+            client_type=active_atom,
+            data=(32, [2, X.CurrentTime, 0, 0, 0]),
+        )
+        root.send_event(
+            client_message,
+            event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask,
+        )
+        disp.flush()
+        disp.sync()
+        return True
+    except Exception:
+        return False
+    finally:
+        if disp is not None:
+            try:
+                disp.close()
+            except Exception:
+                pass
 
 
 def close_window_via_x(wid):
@@ -136,29 +221,48 @@ def close_window_via_x(wid):
 def close_resolve_dialog(title, quiet):
     # Das Fenster mit Titel "File Destination" existiert nur auf der Deliver-Page,
     # daher kein API-Page-Check noetig (waehrend des modalen Dialogs blockiert die API ohnehin).
-    # Resolves Dialog zuverlaessig schliessen: ydotool-Esc geht ans fokussierte Fenster und
-    # verpufft beim ERSTEN Oeffnen (Dialog noch nicht fokussiert). Daher primaer ein gezieltes
-    # EWMH _NET_CLOSE_WINDOW an genau dieses Fenster (fokus-unabhaengig); Esc nur als Fallback.
+    # Ask KWin first, then send WM_DELETE_WINDOW directly. Global Escape is only
+    # a last resort because focus may already have moved to another application.
     closed = False
-    for attempt in range(15):
+    for attempt in range(20):
         wid, current_title = find_intercept_window({title})
         if current_title != title:
             wid = None
         if wid is None:
             closed = True
             break
-        if not close_window_via_x(wid):
-            send_escape()            # Xlib unavailable -> focus-based fallback
-        elif attempt >= 3:
-            send_escape()            # EWMH close not taking effect -> add Esc fallback
-        time.sleep(0.12)
+
+        requested = close_window_via_ewmh(wid)
+        if attempt >= 2 or not requested:
+            requested = close_window_via_x(wid) or requested
+        if attempt >= 5:
+            activate_window_via_x(wid)
+            time.sleep(0.05)
+        if attempt >= 5 or not requested:
+            send_escape()
+        time.sleep(0.1)
+
     if not closed:
         log(quiet, f"warning: Resolve's {title!r} dialog still open after close attempts.")
     return closed
 
 
+def wait_for_dialog_to_disappear(title):
+    while _running and not STOP_PATH.exists():
+        wid, current_title = find_intercept_window({title})
+        if wid is None or current_title != title:
+            return
+        time.sleep(0.1)
+
+
 def handle_file_destination_intercept(resolve, quiet):
-    close_resolve_dialog(FILE_DESTINATION_TITLE, quiet)
+    if not close_resolve_dialog(FILE_DESTINATION_TITLE, quiet):
+        log(quiet, "Native picker skipped; keeping Resolve's File Destination dialog.")
+        wait_for_dialog_to_disappear(FILE_DESTINATION_TITLE)
+        return resolve
+
+    # Let KWin finish focus/modal bookkeeping before opening the portal picker.
+    time.sleep(0.15)
 
     start = srl.load_start_dir(None)
     chosen = srl.pick_save_path(start)
@@ -195,13 +299,16 @@ def main():
     parser.add_argument("--interval", type=float, default=0.3, help="Poll-Intervall in Sekunden")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--require-mediapool-watcher", action="store_true",
-                        help="Nur abfangen, wenn der MediaPool-Watcher laeuft")
+                        help=argparse.SUPPRESS)  # accepted for compatibility with older tray versions
     args = parser.parse_args()
 
     lock_fd = _acquire_singleton_lock()  # noqa: F841 (held for process lifetime)
     if lock_fd is None:
         log(args.quiet, "another instance already runs, exiting.")
         return 0
+    if not shutil.which("xprop"):
+        log(args.quiet, "error: xprop is required to detect Resolve's File Destination window.")
+        return 2
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
@@ -222,15 +329,16 @@ def main():
         wid, title = find_intercept_window(INTERCEPT_TITLES)
         if wid and wid != handled_id:
             handled_id = wid  # nur einmal pro geoeffnetem Fenster reagieren
-            if args.require_mediapool_watcher and not mediapool_watcher_running():
-                log(args.quiet, "MediaPool watcher off -> not intercepted.")
-            else:
-                log(args.quiet, f"{title} window detected -> intercepting.")
-                try:
-                    resolve = handle_intercept(resolve, wid, title, args.quiet)
-                except Exception as exc:
-                    log(args.quiet, f"intercept failed: {exc}")
-                    log(args.quiet, traceback.format_exc())
+            log(args.quiet, f"{title} window detected -> intercepting.")
+            try:
+                resolve = handle_intercept(resolve, wid, title, args.quiet)
+                # Qt may reuse the same X11 window id for the next Browse
+                # click. The handled dialog is gone (or the fallback wait
+                # returned after it disappeared), so allow that id again.
+                handled_id = None
+            except Exception as exc:
+                log(args.quiet, f"intercept failed: {exc}")
+                log(args.quiet, traceback.format_exc())
         elif not wid:
             handled_id = None
 

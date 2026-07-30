@@ -43,19 +43,19 @@ prompt_yes_no() {
 }
 
 install_required_deps() {
-  # python3-gobject (gi) drives the native portal "Save as" dialog; kdialog is the fallback.
+  # gi drives the portal picker; Xlib/xprop identify and close Resolve's XWayland dialog.
   if command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y python3 ffmpeg python3-gobject kdialog
+    sudo dnf install -y python3 ffmpeg python3-gobject kdialog xprop python3-xlib
   elif command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update
-    sudo apt-get install -y python3 ffmpeg python3-gi kdialog
+    sudo apt-get install -y python3 ffmpeg python3-gi kdialog x11-utils python3-xlib
   elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -S --needed python ffmpeg python-gobject kdialog
+    sudo pacman -S --needed python ffmpeg python-gobject kdialog xorg-xprop python-xlib
   elif command -v zypper >/dev/null 2>&1; then
-    sudo zypper install -y python3 ffmpeg python3-gobject kdialog
+    sudo zypper install -y python3 ffmpeg python3-gobject kdialog xprop python3-python-xlib
   else
     echo "Could not detect a supported package manager."
-    echo "Please install python3, ffmpeg, ffprobe, python3-gobject (gi), and kdialog manually."
+    echo "Please install python3, ffmpeg, ffprobe, python3-gobject (gi), kdialog, xprop, and Python Xlib manually."
     return 1
   fi
 }
@@ -81,7 +81,7 @@ check_dependencies() {
   fi
 
   missing_required=()
-  for command in python3 ffmpeg ffprobe; do
+  for command in python3 ffmpeg ffprobe kdialog xprop; do
     if ! command -v "$command" >/dev/null 2>&1; then
       missing_required+=("$command")
     fi
@@ -104,6 +104,22 @@ check_dependencies() {
   fi
 
   if command -v python3 >/dev/null 2>&1; then
+    missing_python_modules=()
+    if ! python3 -c "import gi" >/dev/null 2>&1; then
+      missing_python_modules+=("gi")
+    fi
+    if ! python3 -c "import Xlib" >/dev/null 2>&1; then
+      missing_python_modules+=("Xlib")
+    fi
+    if [ "${#missing_python_modules[@]}" -gt 0 ]; then
+      echo "Missing native dialog dependencies: ${missing_python_modules[*]}"
+      if prompt_yes_no "Install native dialog dependencies now?"; then
+        install_required_deps
+      else
+        echo "Native KDE file dialogs will remain unavailable until these dependencies are installed."
+      fi
+    fi
+
     if ! python3 -c "import PySide6" >/dev/null 2>&1; then
       echo "Missing tray app dependency: PySide6"
       echo "PySide6 is required for the main tray app. CLI and Resolve menu scripts are fallback tools only."

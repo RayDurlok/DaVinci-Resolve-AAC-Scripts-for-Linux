@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.2.4
+Version:        0.2.5
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -35,6 +35,8 @@ Requires:       /usr/bin/ffprobe
 Requires:       python3-gobject
 Requires:       kdialog
 Requires:       python3-pyside6
+Requires:       python3-xlib
+Requires:       /usr/bin/xprop
 Recommends:     rsms-inter-fonts
 
 %description
@@ -213,6 +215,13 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Jul 30 2026 RayDurlok <noreply@example.com> - 0.2.5-1
+- Prioritize new MediaPool imports while scanning existing projects in bounded
+  background chunks, and reduce the idle polling interval to two seconds
+- Track Resolve process generations so fast restarts reliably start the watcher
+- Harden native Deliver Browse hand-off and require its X11 helper dependencies
+- Add a dedicated timestamped MediaPool scan log
+
 * Sun Jul 26 2026 RayDurlok <noreply@example.com> - 0.2.4-1
 - Stop the MediaPool polling loop from triggering a large native memory leak in
   Resolve's unkeyed GetClipProperty API

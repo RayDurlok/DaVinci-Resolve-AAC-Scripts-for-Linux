@@ -176,6 +176,7 @@ class ResolveAacTray(QObject):
         self.intercept_watcher_process = None
         self.intercept_watcher_log_file = None
         self.manual_resolve_was_running = False
+        self.manual_resolve_identity = None
         self.setup_window = None
 
         icon = None
@@ -259,7 +260,7 @@ class ResolveAacTray(QObject):
         self.intercept_browse_action.setToolTip(
             "Off by default. On: installs the portal plugin so Resolve's dialogs (Export Still, "
             "Import, ...) go native after a restart, and auto-replaces the Deliver 'Browse' browser "
-            "(while the MediaPool watcher runs). Off: removes the plugin again."
+            "while Resolve runs. Off: removes the plugin again."
         )
         self.intercept_browse_action.toggled.connect(self.set_intercept_deliver_browse)
         self.menu.addAction(self.intercept_browse_action)
@@ -358,7 +359,7 @@ class ResolveAacTray(QObject):
         # Portal-Fix installiert halten, solange der Toggle an ist (ueberlebt Neustart/fresh clone).
         if self.config["intercept_deliver_browse"]:
             self.ensure_native_dialog_plugin()
-        # Intercept-Watcher wird in tick() an den MediaPool-Watcher gekoppelt gestartet/gestoppt.
+        # Intercept watcher is reconciled in tick() while Resolve is running.
 
         self.update_status()
 
@@ -495,7 +496,7 @@ class ResolveAacTray(QObject):
             sys.executable,
             str(self.watcher_path()),
             "--interval",
-            os.environ.get("RESOLVE_AAC_WATCH_INTERVAL", "5"),
+            os.environ.get("RESOLVE_AAC_WATCH_INTERVAL", "2"),
             "--quiet",
         ]
         if self.config["use_cache"]:
@@ -541,10 +542,10 @@ class ResolveAacTray(QObject):
 
         return False
 
-    def resolve_is_running(self):
+    def resolve_process_identity(self):
         proc = Path("/proc")
         if not proc.exists():
-            return False
+            return None
 
         current_uid = os.getuid()
         for pid_dir in proc.iterdir():
@@ -556,9 +557,20 @@ class ResolveAacTray(QObject):
             except OSError:
                 continue
             if self.process_matches_resolve(pid_dir):
-                return True
+                try:
+                    # /proc/<pid>/stat field 22 is the process start time. Pair
+                    # it with the PID so a fast Resolve restart is observable
+                    # even when no timer tick sees Resolve fully stopped.
+                    stat_tail = (pid_dir / "stat").read_text().rsplit(")", 1)[1].split()
+                    start_ticks = stat_tail[19]
+                except (OSError, IndexError):
+                    start_ticks = ""
+                return pid_dir.name, start_ticks
 
-        return False
+        return None
+
+    def resolve_is_running(self):
+        return self.resolve_process_identity() is not None
 
     def watcher_is_running(self):
         if self.watcher_process and self.watcher_process.poll() is None:
@@ -1080,8 +1092,8 @@ Name[en_US]=DaVinci Resolve
                 message = "Native file dialogs on."
                 if status == "installed":
                     message += " Restart Resolve so Export Still/Import become native too."
-                elif not self.watcher_is_running():
-                    message += " Deliver intercept starts with the MediaPool watcher."
+                elif not self.resolve_is_running():
+                    message += " Deliver intercept starts with Resolve."
                 self.notify("DaVinci Resolve Toolkit", message)
         else:
             if self.remove_native_dialog_plugin():
@@ -1096,7 +1108,6 @@ Name[en_US]=DaVinci Resolve
         return [
             sys.executable,
             str(self.intercept_watcher_path()),
-            "--require-mediapool-watcher",
         ]
 
     def intercept_watcher_is_running(self):
@@ -1371,37 +1382,35 @@ Name[en_US]=DaVinci Resolve
         self.consume_start_request()
 
     def reconcile_intercept_watcher(self):
-        # Lebenszyklus an den MediaPool-Watcher koppeln: nur laufen, waehrend dieser laeuft.
-        want = bool(self.config["intercept_deliver_browse"]) and self.watcher_is_running()
+        # Native dialogs are independent from AAC remuxing. Keeping this watcher
+        # tied to Resolve avoids missed Browse clicks while the MediaPool watcher
+        # is briefly recycling or reconnecting.
+        want = bool(self.config["intercept_deliver_browse"]) and self.resolve_is_running()
         if want and not self.intercept_watcher_is_running():
             self.start_intercept_watcher(notify=False)
         elif not want and self.intercept_watcher_is_running():
             self.stop_intercept_watcher(notify=False)
 
     def check_manual_resolve(self):
+        resolve_identity = self.resolve_process_identity()
+        resolve_running = resolve_identity is not None
+
         if not self.config["watch_manual_resolve"]:
-            self.manual_resolve_was_running = self.resolve_is_running()
+            self.manual_resolve_was_running = resolve_running
+            self.manual_resolve_identity = resolve_identity
             return
 
-        if self.process and self.process.poll() is None:
-            if (
-                self.resolve_is_running()
-                and not self.watcher_is_running()
-                and not self.watcher_restart_suppressed
-            ):
-                self.start_watcher_for_manual_resolve()
-            self.manual_resolve_was_running = True
-            return
-
-        resolve_running = self.resolve_is_running()
         if resolve_running:
-            if not self.manual_resolve_was_running:
+            new_session = resolve_identity != self.manual_resolve_identity
+            if new_session:
                 self.watcher_restart_suppressed = False
-                self.start_watcher_for_manual_resolve()
-            elif not self.watcher_is_running() and not self.watcher_restart_suppressed:
+
+            if not self.watcher_is_running() and not self.watcher_restart_suppressed:
                 self.watcher_process = None
                 self.start_watcher_for_manual_resolve()
+
             self.manual_resolve_was_running = True
+            self.manual_resolve_identity = resolve_identity
             return
 
         if self.manual_resolve_was_running and self.watcher_process:
@@ -1410,6 +1419,7 @@ Name[en_US]=DaVinci Resolve
             self.watcher_process = None
 
         self.manual_resolve_was_running = False
+        self.manual_resolve_identity = None
         self.watcher_restart_suppressed = False
 
     def restore_original_sources(self):

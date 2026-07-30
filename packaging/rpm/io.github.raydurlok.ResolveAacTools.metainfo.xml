@@ -85,6 +85,17 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.5" date="2026-07-30">
+      <description>
+        <p>Makes AAC imports and native Deliver browsing more responsive and reliable.</p>
+        <ul>
+          <li>Prioritizes newly imported clips while scanning large projects incrementally</li>
+          <li>Detects Resolve restarts by process generation and restores stopped watchers</li>
+          <li>Hardens the native Deliver Browse hand-off and validates its dependencies</li>
+          <li>Adds timestamped MediaPool scan diagnostics</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.4" date="2026-07-26">
       <description>
         <p>Fixes excessive memory growth in the MediaPool watcher.</p>

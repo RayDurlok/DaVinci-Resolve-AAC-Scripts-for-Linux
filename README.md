@@ -49,7 +49,8 @@ resolve-aac-tray
 
 On first run a guided setup window opens. Reopen it any time from the tray
 (`Settings`) or with `resolve-aac-settings`. The tray logs to
-`/tmp/DaVinciResolveToolkit.log`.
+`/tmp/DaVinciResolveToolkit.log`; MediaPool scan details are written to
+`/tmp/resolve_aac_mediapool_watch.log`.
 
 **Requirements:** DaVinci Resolve (Studio), Python 3, `ffmpeg`/`ffprobe`, PySide6,
 and Resolve scripting enabled (`Preferences -> System -> General -> External
@@ -117,8 +118,8 @@ Resolve on Linux also can't export AAC directly:
   (Export Still, Import and Deliver destination) through the native KDE/portal
   picker. Media relinking stays in Resolve because its scripting API cannot
   reliably distinguish one selected bin from multiple selected bins. Needs
-  `python3-gobject` and `kdialog` (installer adds them); restart Resolve after
-  toggling.
+  `python3-gobject`, `kdialog`, `xprop` and Python Xlib (installer adds them);
+  restart Resolve after toggling.
 - **Resolve font fix**: one-time install so Resolve/Fusion see fonts from
   `/usr/local/share/fonts`, `~/.local/share/fonts`, and `~/.fonts`.
 - **DaVinci Resolve Updater** (`resolve-update-from-downloads`): installs the

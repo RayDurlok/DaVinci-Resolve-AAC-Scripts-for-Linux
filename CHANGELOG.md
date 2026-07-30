@@ -1,10 +1,42 @@
 # Changelog
 
 All notable changes to this project are documented here. The format loosely
-follows [Keep a Changelog](https://keepachangelog.com/). Releases before this
-file are tracked through git tags and GitHub releases (latest: `v0.1.11`).
+follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [0.2.5] - 2026-07-30
+
+### Changed
+- Poll the bounded MediaPool fast lane every two seconds for more responsive
+  drag-and-drop imports.
+
+### Fixed
+- Make the native Deliver destination hand-off more reliable by asking KWin to
+  close Resolve's dialog through EWMH before falling back to direct
+  `WM_DELETE_WINDOW`. Open the KDE picker only after the Resolve dialog is
+  confirmed closed; otherwise keep the original dialog instead of stacking two
+  competing modal windows. Activate the exact dialog before the final Escape
+  fallback, and allow reused X11 window IDs so rapid subsequent **Browse**
+  clicks are not ignored.
+- Keep the native Deliver Browse watcher tied to Resolve instead of the
+  MediaPool watcher, so MediaPool reconnects cannot create missed-click windows.
+  The installers now include and validate `xprop` and Python Xlib instead of
+  failing silently when another PC does not have them.
+- Rescan the MediaPool after small conversion batches and prioritize clips
+  imported since the previous pass. Large existing AAC backlogs no longer make
+  a fresh drag-and-drop appear to have been missed for several minutes.
+- Track Resolve by PID and process start time. Closing and reopening Resolve
+  between two tray polling ticks now starts a fresh watcher instead of carrying
+  a previous manual-stop suppression into the new Resolve session.
+- Cache each clip's path, online status and media ID within a scan instead of
+  repeatedly crossing Resolve's scripting bridge for the same properties.
+- Give the MediaPool watcher its own timestamped log with first/slow scan
+  timings. Unit tests no longer mix synthetic failures into runtime logs.
+- Check the newest clips in the current MediaPool folder on every pass while
+  walking large existing projects in bounded background chunks. A 1,000+ clip
+  project can no longer block fresh import detection behind its initial scan.
+  Offline media is summarized instead of logging hundreds of individual paths.
 
 ## [0.2.4] - 2026-07-26
 
