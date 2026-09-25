@@ -3,12 +3,12 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.2.5
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
-# The scripts are GPLv3. Switch to GPL-3.0-only if upstream ever drops "or later".
-License:        GPL-3.0-or-later
+# Toolkit scripts; derived native export adapter; retained upstream MIT notice.
+License:        GPL-3.0-or-later AND GPL-3.0-only AND MIT AND ISC
 URL:            https://github.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux
 
 Source0:        %{srcname}-%{version}.tar.gz
@@ -40,12 +40,10 @@ Requires:       /usr/bin/xprop
 Recommends:     rsms-inter-fonts
 
 %description
-DaVinci Resolve on Linux cannot import AAC audio directly. DaVinci Resolve
-Toolkit watches your media, remuxes AAC into a Resolve-friendly container, and
-adds a system tray to control the watchers, launch Resolve, and fix AAC audio in
-rendered exports. Remuxing can be undone at any time with "Restore original
-sources", and applied on demand to the current clip or the whole media pool from
-Resolve's Scripts menu.
+DaVinci Resolve Toolkit offers opt-in native AAC import and experimental direct
+AAC-LC export for Resolve Studio 21, with verified downloads and backup restore.
+Legacy MediaPool conversion and export remux remain available for compatibility.
+The package includes export source code, not patched Resolve or codec binaries.
 
 This package installs the tools system-wide. Per-user preferences are managed
 from the tray and the settings window. Resolve menu scripts are optional and can
@@ -58,6 +56,7 @@ be installed from Settings.
 # --- runtime scripts -> /usr/share/resolve-aac-tools ---
 install -d %{buildroot}%{sharedir}
 install -p -m0755 *.py *.sh %{buildroot}%{sharedir}/
+cp -a native-aac docs %{buildroot}%{sharedir}/
 
 # --- CLI wrappers -> /usr/bin (mirror install_user_tools.sh, pointed at %{sharedir}) ---
 install -d %{buildroot}%{_bindir}
@@ -123,10 +122,6 @@ set -euo pipefail
 
 LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 
-if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
-  exit 0
-fi
-
 setsid "%{sharedir}/resolve_aac_tray.py" "\$@" >>"\$LOG" 2>&1 </dev/null &
 disown || true
 EOF
@@ -139,12 +134,6 @@ EOF
 cat > %{buildroot}%{_bindir}/resolve-aac-start <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-
-if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
-  mkdir -p "\$HOME/.config/resolve-aac-tools"
-  : > "\$HOME/.config/resolve-aac-tools/start_resolve.request"
-  exit 0
-fi
 
 LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 setsid "%{sharedir}/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev/null &
@@ -191,6 +180,7 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %files
 %license LICENSE
 %doc README.md
+%doc docs/third-party.md
 %{sharedir}/
 %{_bindir}/resolve-aac-import
 %{_bindir}/resolve-aac-watch
@@ -215,6 +205,12 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Sat Sep 26 2026 RayDurlok <noreply@example.com> - 0.3.0-1
+- Add opt-in native AAC import and AAC-LC export for Resolve Studio 21
+- Keep conversion workflows as Legacy and stop them in Native mode
+- Integrate native patch maintenance into the Resolve ZIP updater
+- Add single-instance tray handling, setup guidance and progress reporting
+
 * Thu Jul 30 2026 RayDurlok <noreply@example.com> - 0.2.5-1
 - Prioritize new MediaPool imports while scanning existing projects in bounded
   background chunks, and reduce the idle polling interval to two seconds

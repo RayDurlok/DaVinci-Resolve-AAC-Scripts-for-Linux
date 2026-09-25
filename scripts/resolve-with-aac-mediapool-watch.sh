@@ -2,6 +2,11 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${RESOLVE_AAC_LEGACY_FORCE:-0}" != "1" ]] &&
+   PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -c \
+   'from resolve_aac_config import load_config, legacy_enabled; raise SystemExit(legacy_enabled(load_config()))'; then
+  exec bash "$APP_DIR/resolve-with-fonts.sh" "$@"
+fi
 LOG="/tmp/resolve_aac_launcher.log"
 STOP="/tmp/resolve_aac_mediapool_watch.stop"
 WATCH_INTERVAL="${RESOLVE_AAC_WATCH_INTERVAL:-5}"
@@ -87,6 +92,10 @@ resolve_pid=$!
 
 (
   sleep "$WATCH_DELAY"
+  if [[ "${RESOLVE_AAC_LEGACY_FORCE:-0}" != "1" ]]; then
+    PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -c \
+      'from resolve_aac_config import load_config, legacy_enabled; raise SystemExit(not legacy_enabled(load_config()))' || exit 0
+  fi
   "$APP_DIR/resolve_aac_mediapool_watch.py" "${WATCH_ARGS[@]}" >>"$LOG" 2>&1
 ) &
 watcher_pid=$!

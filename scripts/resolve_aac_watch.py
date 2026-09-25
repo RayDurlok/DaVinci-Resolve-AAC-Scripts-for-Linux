@@ -8,9 +8,11 @@ import time
 from pathlib import Path
 
 from resolve_aac_import import convert, import_into_resolve, print_summary
+from resolve_aac_config import legacy_workflow_active
 
 
 MEDIA_EXTS = {".aac", ".m4a", ".mp4", ".mov", ".mkv"}
+STOP_PATH = Path("/tmp/resolve_aac_watch.stop")
 
 
 def load_state(path):
@@ -55,6 +57,8 @@ def process_once(args, state):
     import_paths = []
 
     for path in media_files(args.inbox):
+        if not legacy_workflow_active() or STOP_PATH.exists():
+            break
         key = str(path.resolve())
         current_fingerprint = fingerprint(path)
         if state.get(key) == current_fingerprint and not args.retry:
@@ -110,6 +114,10 @@ def main():
     parser.set_defaults(do_import=True)
     args = parser.parse_args()
 
+    if not legacy_workflow_active():
+        print("Native AAC selected; folder watcher stays stopped.")
+        return 0
+    STOP_PATH.unlink(missing_ok=True)
     args.inbox.mkdir(parents=True, exist_ok=True)
     args.output.mkdir(parents=True, exist_ok=True)
 
@@ -118,7 +126,7 @@ def main():
     print(f"output:   {args.output}")
     print("drop AAC media into the inbox folder")
 
-    while True:
+    while legacy_workflow_active() and not STOP_PATH.exists():
         state_changed = False
         try:
             count = process_once(args, state)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import fcntl
 import hashlib
 import os
 import shutil
@@ -33,10 +34,15 @@ except ImportError:
 from resolve_aac_config import (
     CONFIG_DIR,
     DEFAULT_CACHE_DIR,
+    LEGACY_STOP_PATHS,
+    NATIVE_AAC_NOTICE_VERSION,
     START_REQUEST_PATH,
+    SETTINGS_REQUEST_PATH,
     load_config,
+    legacy_enabled,
     save_config,
     should_show_setup,
+    should_show_native_update,
 )
 
 
@@ -143,14 +149,30 @@ def remove_autostart_file():
         pass
 
 
-def parse_args():
+def acquire_tray_lock():
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    # Never unlink this file: all launch paths must lock the same inode.
+    lock = os.fdopen(os.open(CONFIG_DIR / "tray.lock", os.O_CREAT | os.O_RDWR, 0o600), "a")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.close()
+        return None
+    except BaseException:
+        lock.close()
+        raise
+    return lock
+
+
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Resolve AAC system tray helper")
     parser.add_argument(
         "--start-resolve",
         action="store_true",
         help="start Resolve with the MediaPool watcher after opening the tray",
     )
-    return parser.parse_args()
+    parser.add_argument("--settings", action="store_true", help="open settings in the running toolkit")
+    return parser.parse_args(argv)
 
 
 class ResolveAacTray(QObject):
@@ -178,6 +200,11 @@ class ResolveAacTray(QObject):
         self.manual_resolve_was_running = False
         self.manual_resolve_identity = None
         self.setup_window = None
+        from resolve_aac_setup import migrate_legacy_menu_labels
+        try:
+            migrate_legacy_menu_labels()
+        except OSError as exc:
+            self.error("Could not update Legacy script labels", str(exc))
 
         icon = None
         for icon_path in (
@@ -213,7 +240,14 @@ class ResolveAacTray(QObject):
         self.menu.addAction(self.status_action)
         self.menu.addSeparator()
 
-        self.start_action = QAction("Start Resolve + MediaPool Watcher")
+        self.native_action = QAction("Native AAC (Resolve Studio 21)...")
+        self.native_action.setToolTip("Install, check or remove native AAC import and experimental direct AAC-LC export.")
+        self.native_action.triggered.connect(self.open_native_settings)
+        self.menu.addAction(self.native_action)
+        self.legacy_menu = self.menu.addMenu("Legacy AAC workflows")
+        self.legacy_menu.setToolTipsVisible(True)
+
+        self.start_action = QAction("Start Resolve")
         self.start_action.setToolTip("Launch DaVinci Resolve and start the MediaPool watcher for imported AAC clips.")
         self.start_action.triggered.connect(self.start_resolve)
         self.menu.addAction(self.start_action)
@@ -221,12 +255,13 @@ class ResolveAacTray(QObject):
         self.stop_action = QAction("Stop Watcher")
         self.stop_action.setToolTip("Stop the MediaPool watcher. The export remux watcher is controlled by its toggle.")
         self.stop_action.triggered.connect(self.stop_watcher)
-        self.menu.addAction(self.stop_action)
+        self.legacy_menu.addAction(self.stop_action)
 
         self.restore_action = QAction("Restore original sources (current project)")
         self.restore_action.setToolTip("Undo the AAC remux: point every remuxed clip in the open project back to its original file.")
         self.restore_action.triggered.connect(self.restore_original_sources)
-        self.menu.addAction(self.restore_action)
+        self.legacy_menu.addAction(self.restore_action)
+        self.legacy_menu.addSeparator()
 
         self.menu.addSeparator()
 
@@ -242,7 +277,7 @@ class ResolveAacTray(QObject):
         self.watch_manual_action.setChecked(bool(self.config["watch_manual_resolve"]))
         self.watch_manual_action.setToolTip("Start the MediaPool watcher when Resolve is opened outside this tray.")
         self.watch_manual_action.toggled.connect(self.set_watch_manual_resolve)
-        self.menu.addAction(self.watch_manual_action)
+        self.legacy_menu.addAction(self.watch_manual_action)
 
         self.remux_exports_action = QAction("Remux all exports in webfriendly AAC")
         self.remux_exports_action.setCheckable(True)
@@ -252,7 +287,8 @@ class ResolveAacTray(QObject):
             "audio to browser-friendly AAC-LC in-place after export. Audio-only PCM renders (no video) are left as PCM."
         )
         self.remux_exports_action.toggled.connect(self.set_remux_exports)
-        self.menu.addAction(self.remux_exports_action)
+        self.legacy_menu.addAction(self.remux_exports_action)
+        self.legacy_menu.addSeparator()
 
         self.intercept_browse_action = QAction("Native KDE file dialogs")
         self.intercept_browse_action.setCheckable(True)
@@ -288,17 +324,18 @@ class ResolveAacTray(QObject):
         self.cache_action.setChecked(bool(self.config["use_cache"]))
         self.cache_action.setToolTip("Store imported AAC remux files in one cache folder instead of beside each source clip.")
         self.cache_action.toggled.connect(self.set_use_cache)
-        self.menu.addAction(self.cache_action)
+        self.legacy_menu.addAction(self.cache_action)
 
         self.choose_cache_action = QAction("Choose cache folder...")
         self.choose_cache_action.setToolTip("Pick where cached remux files should be stored.")
         self.choose_cache_action.triggered.connect(self.choose_cache_folder)
-        self.menu.addAction(self.choose_cache_action)
+        self.legacy_menu.addAction(self.choose_cache_action)
 
         self.open_cache_action = QAction("Open cache folder")
         self.open_cache_action.setToolTip("Open the currently selected cache folder in the file manager.")
         self.open_cache_action.triggered.connect(lambda: self.open_path(Path(self.config["cache_dir"])))
-        self.menu.addAction(self.open_cache_action)
+        self.legacy_menu.addAction(self.open_cache_action)
+        self.legacy_menu.addSeparator()
 
         self.menu.addSeparator()
 
@@ -307,7 +344,7 @@ class ResolveAacTray(QObject):
             "Install once for Resolve 20 only; status changes to installed when the export plugin is present."
         )
         self.export_plugin_action.triggered.connect(self.handle_export_plugin_action)
-        self.menu.addAction(self.export_plugin_action)
+        self.legacy_menu.addAction(self.export_plugin_action)
 
         self.resolve_font_action = QAction("Resolve font fix: Install")
         self.resolve_font_action.setToolTip(
@@ -354,8 +391,10 @@ class ResolveAacTray(QObject):
         self.manual_resolve_timer.timeout.connect(self.check_manual_resolve)
         self.manual_resolve_timer.start(MANUAL_RESOLVE_CHECK_MS)
 
-        if self.config["remux_exports"]:
+        if legacy_enabled(self.config) and self.config["remux_exports"]:
             QTimer.singleShot(500, lambda: self.start_export_watcher(notify=False))
+        if not legacy_enabled(self.config):
+            self.stop_legacy_tools()
         # Portal-Fix installiert halten, solange der Toggle an ist (ueberlebt Neustart/fresh clone).
         if self.config["intercept_deliver_browse"]:
             self.ensure_native_dialog_plugin()
@@ -367,6 +406,35 @@ class ResolveAacTray(QObject):
             QTimer.singleShot(250, self.start_resolve)
         elif should_show_setup(self.config):
             QTimer.singleShot(350, lambda: self.open_settings(first_run=True))
+        if should_show_native_update(self.config):
+            QTimer.singleShot(700, self.show_native_update_notice)
+
+    def show_native_update_notice(self):
+        if not should_show_native_update(self.config):
+            return
+        notice = QMessageBox(self.setup_window)
+        notice.setWindowTitle("Toolkit update: native AAC")
+        notice.setIcon(QMessageBox.Information)
+        notice.setText("The AAC architecture has changed.")
+        notice.setInformativeText(
+            "Native AAC adds direct import and export support through a Resolve patch, "
+            "instead of converting your media.\n\n"
+            "To switch, close Resolve and select Native AAC in Settings. "
+            "This installs both the import patch and export plugin. "
+            "The experimental patch supports Resolve Studio 21 on Linux x86-64.\n\n"
+            "This update does not patch Resolve automatically. Your current workflow "
+            "is unchanged; Legacy conversions remain available."
+        )
+        open_settings = notice.addButton("Open AAC settings", QMessageBox.AcceptRole)
+        notice.addButton("Later", QMessageBox.RejectRole)
+        notice.exec()
+        self.config = load_config()
+        self.config["native_aac_notice_version"] = NATIVE_AAC_NOTICE_VERSION
+        save_config(self.config)
+        if self.setup_window is not None:
+            self.setup_window.cfg["native_aac_notice_version"] = NATIVE_AAC_NOTICE_VERSION
+        if notice.clickedButton() == open_settings:
+            self.open_native_settings()
 
     def notify(self, title, message):
         if self.config["mute_notifications"]:
@@ -392,6 +460,11 @@ class ResolveAacTray(QObject):
         self.setup_window.raise_()
         self.setup_window.activateWindow()
 
+    def open_native_settings(self):
+        self.open_settings()
+        self.setup_window.index = 1
+        self.setup_window.sync()
+
     def apply_saved_settings(self, saved_config):
         previous = dict(self.config)
         self.config = saved_config
@@ -407,8 +480,13 @@ class ResolveAacTray(QObject):
             action.setChecked(bool(self.config[key]))
             action.blockSignals(False)
 
-        if bool(previous.get("remux_exports")) != bool(self.config["remux_exports"]):
-            if self.config["remux_exports"]:
+        mode_changed = legacy_enabled(previous) != legacy_enabled(self.config)
+        if mode_changed:
+            self.watcher_restart_suppressed = not legacy_enabled(self.config)
+            if not legacy_enabled(self.config):
+                self.stop_legacy_tools()
+        if legacy_enabled(self.config) and (mode_changed or bool(previous.get("remux_exports")) != bool(self.config["remux_exports"])):
+            if legacy_enabled(self.config) and self.config["remux_exports"]:
                 self.start_export_watcher()
             else:
                 self.stop_export_watcher()
@@ -431,8 +509,19 @@ class ResolveAacTray(QObject):
 
         self.update_status()
 
+    def stop_legacy_tools(self):
+        self.watcher_restart_suppressed = True
+        # Cooperative shutdown also reaches watchers started outside this tray.
+        # Do not kill a writer between backing up an export and replacing it.
+        for path in LEGACY_STOP_PATHS:
+            try:
+                path.touch()
+            except OSError as exc:
+                self.error("Could not stop Legacy tools", str(exc))
+
     def launcher_path(self):
-        return SCRIPT_DIR / "resolve-with-aac-mediapool-watch.sh"
+        name = "resolve-with-aac-mediapool-watch.sh" if legacy_enabled(self.config) else "resolve-with-fonts.sh"
+        return SCRIPT_DIR / name
 
     def stop_path(self):
         return SCRIPT_DIR / "resolve_aac_mediapool_watch_stop.py"
@@ -630,6 +719,11 @@ class ResolveAacTray(QObject):
         subprocess.run(["pkexec", "cp", str(source_file), str(EXPORT_PLUGIN_TARGET_FILE)], check=True)
 
     def install_export_plugin(self):
+        from resolve_aac_native import require_closed, resolve_info
+        require_closed()
+        version, edition = resolve_info()
+        if not version or not version.startswith("20.") or edition != "studio":
+            raise RuntimeError("This Legacy plugin is restricted to Resolve Studio 20. For Studio 21 use Native AAC settings.")
         if self.export_plugin_installed():
             self.notify("DaVinci Resolve Toolkit", "AAC export plugin is already installed.")
             return
@@ -865,6 +959,16 @@ Name[en_US]=DaVinci Resolve
             self.notify("DaVinci Resolve Toolkit", "Resolve font fix is not installed.")
 
     def start_resolve(self):
+        from resolve_aac_native import operation_in_progress
+        if operation_in_progress():
+            self.error("Resolve maintenance in progress", "Wait for the Resolve update or Native AAC operation to finish before starting Resolve.")
+            return
+        if self.resolve_is_running():
+            if legacy_enabled(self.config):
+                self.start_watcher_for_manual_resolve()
+            else:
+                self.notify("DaVinci Resolve Toolkit", "Resolve is already running. Native AAC needs no watcher.")
+            return
         if self.process and self.process.poll() is None:
             self.notify("DaVinci Resolve Toolkit", "Resolve launcher is already running.")
             return
@@ -881,10 +985,12 @@ Name[en_US]=DaVinci Resolve
             self.error("Could not start Resolve", str(exc))
             return
 
-        self.notify("DaVinci Resolve Toolkit", "Started Resolve with MediaPool watcher.")
+        self.notify("DaVinci Resolve Toolkit", "Started Resolve with MediaPool watcher." if legacy_enabled(self.config) else "Started Resolve in native AAC mode.")
         self.update_status()
 
     def start_watcher_for_manual_resolve(self):
+        if not legacy_enabled(self.config):
+            return
         watcher = self.watcher_path()
         if not watcher.exists():
             self.error("Missing watcher", f"Could not find:\n{watcher}")
@@ -937,6 +1043,8 @@ Name[en_US]=DaVinci Resolve
         self.update_status()
 
     def start_export_watcher(self, notify=True):
+        if not legacy_enabled(self.config):
+            return
         watcher = self.export_watcher_path()
         if not watcher.exists():
             self.error("Missing export watcher", f"Could not find:\n{watcher}")
@@ -1315,23 +1423,27 @@ Name[en_US]=DaVinci Resolve
             status = "Export remux watcher running"
         else:
             status = "Stopped"
-        export_status = "export remux on" if self.config["remux_exports"] else "export remux off"
+        legacy = legacy_enabled(self.config)
+        self.legacy_menu.menuAction().setVisible(legacy)
+        export_status = "export remux on" if legacy and self.config["remux_exports"] else "export remux off"
         self.status_action.setText(f"{status} - output: {mode} - {export_status}")
+        if not legacy:
+            self.status_action.setText("Native AAC mode - conversion watchers off")
+        self.start_action.setText("Start Resolve + MediaPool Watcher" if legacy else "Start Resolve")
+        self.start_action.setToolTip("Launch Resolve with legacy import conversion." if legacy else "Launch Resolve without conversion watchers. Install/check the native patch in Native AAC settings.")
+        self.watch_manual_action.setEnabled(legacy)
+        self.remux_exports_action.setEnabled(legacy)
         self.stop_action.setEnabled(True)
         self.open_cache_action.setEnabled(bool(self.config["use_cache"]))
         self.remux_exports_action.blockSignals(True)
         self.remux_exports_action.setChecked(bool(self.config["remux_exports"]))
         self.remux_exports_action.blockSignals(False)
-        self.tray.setToolTip(
-            "\n".join([
-                "DaVinci Resolve Toolkit",
-                f"Status: {status}",
-                f"Output: {mode}",
-                f"Export remux: {'on' if self.config['remux_exports'] else 'off'}",
-                "Left-click: start Resolve + watcher",
-                "Right-click: settings",
-            ])
-        )
+        tooltip = ["DaVinci Resolve Toolkit", f"AAC workflow: {'Legacy' if legacy else 'Native'}"]
+        if legacy:
+            tooltip.extend([f"Status: {status}", f"Output: {mode}",
+                            f"Export remux: {'on' if self.config['remux_exports'] else 'off'}"])
+        tooltip.extend(["Left-click: settings", "Right-click: menu"])
+        self.tray.setToolTip("\n".join(tooltip))
         self.update_export_plugin_action()
         self.update_resolve_font_action()
 
@@ -1364,18 +1476,21 @@ Name[en_US]=DaVinci Resolve
         self.resolve_font_action.blockSignals(False)
 
     def consume_start_request(self):
-        if not START_REQUEST_PATH.exists():
-            return
-
-        try:
-            START_REQUEST_PATH.unlink()
-        except OSError:
-            pass
-
-        self.start_resolve()
+        for path, action in ((START_REQUEST_PATH, self.start_resolve),
+                             (SETTINGS_REQUEST_PATH, self.open_settings)):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                continue
+            action()
 
     def tick(self):
-        if self.config["remux_exports"] and not self.export_watcher_is_running():
+        saved = load_config()
+        if saved != self.config:
+            self.apply_saved_settings(saved)
+        if legacy_enabled(self.config) and self.config["remux_exports"] and not self.export_watcher_is_running():
             self.start_export_watcher(notify=False)
         self.reconcile_intercept_watcher()
         self.update_status()
@@ -1395,7 +1510,7 @@ Name[en_US]=DaVinci Resolve
         resolve_identity = self.resolve_process_identity()
         resolve_running = resolve_identity is not None
 
-        if not self.config["watch_manual_resolve"]:
+        if not legacy_enabled(self.config) or not self.config["watch_manual_resolve"]:
             self.manual_resolve_was_running = resolve_running
             self.manual_resolve_identity = resolve_identity
             return
@@ -1471,6 +1586,23 @@ Name[en_US]=DaVinci Resolve
         return self.app.exec()
 
 
+def main(argv=None):
+    args = parse_args(argv)
+    lock = acquire_tray_lock()
+    if lock is None:
+        if args.start_resolve:
+            START_REQUEST_PATH.touch(mode=0o600)
+        if args.settings or not args.start_resolve:
+            SETTINGS_REQUEST_PATH.touch(mode=0o600)
+        return 0
+    try:
+        tray = ResolveAacTray(start_resolve=args.start_resolve)
+        if args.settings:
+            QTimer.singleShot(350, tray.open_settings)
+        return tray.run()
+    finally:
+        lock.close()
+
+
 if __name__ == "__main__":
-    args = parse_args()
-    raise SystemExit(ResolveAacTray(start_resolve=args.start_resolve).run())
+    raise SystemExit(main())

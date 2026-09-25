@@ -85,6 +85,17 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.0" date="2026-09-26">
+      <description>
+        <p>Adds opt-in experimental native AAC support for Resolve Studio 21.</p>
+        <ul>
+          <li>Direct AAC import and AAC-LC export with paired installation and removal</li>
+          <li>Legacy conversion workflows remain available for compatibility</li>
+          <li>Resolve ZIP updates manage existing native patches with verification</li>
+          <li>Single-instance tray, activation progress and a collapsible Welcome guide</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.5" date="2026-07-30">
       <description>
         <p>Makes AAC imports and native Deliver browsing more responsive and reliable.</p>

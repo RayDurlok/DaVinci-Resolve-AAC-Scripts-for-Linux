@@ -11,6 +11,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from resolve_aac_import import get_resolve
+from resolve_aac_config import legacy_workflow_active
 from resolve_aac_timeline import (
     LOG_PATH,
     is_generated_remux_path,
@@ -70,6 +71,8 @@ def get_context():
 
 
 def scan_once(args, state):
+    if not legacy_workflow_active():
+        return 0
     project, timeline, media_pool = get_context()
     changed = 0
     audio_items = list(timeline_items(timeline, "audio"))
@@ -80,6 +83,8 @@ def scan_once(args, state):
     state["signature"] = signature
 
     for audio_item in audio_items:
+        if not legacy_workflow_active() or STOP_PATH.exists():
+            break
         key = item_key(audio_item)
         if key in state["processed"] and not args.retry:
             continue
@@ -134,6 +139,9 @@ def main():
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
+    if not legacy_workflow_active():
+        log("Native AAC selected; timeline watcher stays stopped.")
+        return 0
     if STOP_PATH.exists():
         STOP_PATH.unlink()
 
@@ -146,7 +154,7 @@ def main():
         "source_cache": {},
         "signature": None,
     }
-    while True:
+    while legacy_workflow_active() and not STOP_PATH.exists():
         try:
             changed = scan_once(args, state)
             if changed:

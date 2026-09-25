@@ -14,6 +14,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from resolve_aac_import import convert, get_resolve
+from resolve_aac_config import legacy_workflow_active
 from resolve_aac_timeline import (
     DEFAULT_OUTPUT_SUBDIR,
     is_generated_remux_path,
@@ -278,6 +279,8 @@ def replace_media_pool_item(
     quiet=False,
     raw_path=None,
 ):
+    if not legacy_workflow_active():
+        return None
     if raw_path is None:
         raw_path = media_pool_item_path(item)
     if not raw_path:
@@ -305,6 +308,8 @@ def replace_media_pool_item(
     if result.status == "error" or not result.output_path:
         raise RuntimeError(result.message or f"Could not convert {input_path}")
 
+    if not legacy_workflow_active():
+        return None
     replacer = getattr(item, "ReplaceClipPreserveSubClip", None) or item.ReplaceClip
     if not replacer(str(result.output_path)):
         raise RuntimeError(f"Could not replace MediaPool item with {result.output_path}")
@@ -315,6 +320,8 @@ def replace_media_pool_item(
 
 
 def scan_once(args, state):
+    if not legacy_workflow_active():
+        return 0
     started_at = time.monotonic()
     media_pool = get_context()
     incremental = hasattr(args, "background_items")
@@ -354,6 +361,8 @@ def scan_once(args, state):
 
     batch_size = max(0, int(getattr(args, "batch_size", 0)))
     for item, key, raw_path, online_state in records:
+        if not legacy_workflow_active():
+            break
         if key in state["processed"] and not args.retry:
             continue
         if state["retry_after"].get(key, 0) > now and not args.retry:
@@ -451,6 +460,9 @@ def main():
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
+    if not legacy_workflow_active():
+        log("Native AAC selected; MediaPool watcher stays stopped.")
+        return 0
     if STOP_PATH.exists():
         STOP_PATH.unlink()
 
@@ -461,7 +473,7 @@ def main():
     state = new_scan_state()
     resolve_seen = False
     resolve_gone = 0
-    while True:
+    while legacy_workflow_active() and not STOP_PATH.exists():
         changed = 0
         try:
             changed = scan_once(args, state)

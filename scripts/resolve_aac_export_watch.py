@@ -9,6 +9,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from resolve_aac_config import legacy_workflow_active
 
 
 MEDIA_EXTS = {".mp4", ".m4v", ".mov"}
@@ -284,6 +285,8 @@ def desktop_notify(args, title, message):
 
 
 def convert(path, args):
+    if not legacy_workflow_active():
+        return None
     # Keep the source container: a .mov (ProRes/DNxHD) export cannot be muxed into
     # MP4, so deriving the temp extension from the input avoids ffmpeg exit 234.
     container_ext = path.suffix if path.suffix.lower() in MEDIA_EXTS else ".mp4"
@@ -329,6 +332,9 @@ def convert(path, args):
         desktop_notify(args, "Export remux failed", path.name)
         raise
 
+    if not legacy_workflow_active():
+        temp_path.unlink(missing_ok=True)
+        return None
     backup_path = None
     if args.replace:
         if args.backup:
@@ -353,6 +359,8 @@ def convert(path, args):
 def scan_once(args, state):
     changed = 0
     for path in iter_candidates(args.paths):
+        if not legacy_workflow_active() or STOP_PATH.exists():
+            break
         path = path.resolve()
         if path.name.startswith("."):
             continue
@@ -373,13 +381,16 @@ def scan_once(args, state):
         if not needs_conversion(path):
             state[str(path)] = current
             continue
-        convert(path, args)
+        if convert(path, args) is None:
+            break
         state[str(path)] = fingerprint(path)
         changed += 1
     return changed
 
 
 def process_path(path, args, state, retry_probe_failures=False):
+    if not legacy_workflow_active() or STOP_PATH.exists():
+        return False
     path = path.resolve()
     if path.name.startswith("."):
         return False
@@ -417,7 +428,8 @@ def process_path(path, args, state, retry_probe_failures=False):
         state[str(path)] = current
         return False
 
-    convert(path, args)
+    if convert(path, args) is None:
+        return False
     state[str(path)] = fingerprint(path)
     return True
 
@@ -503,6 +515,9 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if not legacy_workflow_active():
+        log("Native AAC selected; export watcher stays stopped.")
+        return 0
     args.started_at = time.time()
     try:
         STOP_PATH.unlink()
@@ -520,7 +535,7 @@ def main():
     log(f"mode: {'replace' if args.replace else 'sidecar'}")
 
     runtime = {}
-    while True:
+    while legacy_workflow_active() and not STOP_PATH.exists():
         try:
             if args.detect_resolve_outputs:
                 changed = scan_detected_resolve_outputs_once(args, state, runtime)

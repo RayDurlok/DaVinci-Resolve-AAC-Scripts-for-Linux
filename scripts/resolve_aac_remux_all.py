@@ -36,10 +36,12 @@ def run():
 
     from types import SimpleNamespace
 
-    from resolve_aac_config import load_config
+    from resolve_aac_config import load_config, legacy_enabled
     from resolve_aac_mediapool_watch import new_scan_state, scan_once
 
     cfg = load_config()
+    if not legacy_enabled(cfg):
+        return "Native AAC is selected. Legacy menu scripts are disabled."
     cache_dir = Path(cfg["cache_dir"]).expanduser() if cfg.get("use_cache") else None
     args = SimpleNamespace(
         output_dir=None,

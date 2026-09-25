@@ -11,6 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+from resolve_aac_config import legacy_workflow_active
 
 
 RESOLVE_SCRIPT_MODULE = "/opt/resolve/Developer/Scripting/Modules/DaVinciResolveScript.py"
@@ -143,6 +144,8 @@ def build_ffmpeg_command(input_path, output_path, probe, overwrite):
 
 
 def convert(input_path, output_dir, root, flat, overwrite, dry_run, quiet):
+    if not legacy_workflow_active():
+        return JobResult(input_path, None, "skipped", "Native AAC is selected")
     output_path = output_path_for(input_path, output_dir, root, flat)
     if output_path.exists() and not overwrite:
         return JobResult(input_path, output_path, "exists", "already converted")
@@ -161,6 +164,8 @@ def convert(input_path, output_dir, root, flat, overwrite, dry_run, quiet):
         return JobResult(input_path, output_path, "dry-run", command_text(command))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if not legacy_workflow_active():
+        return JobResult(input_path, None, "skipped", "Native AAC is selected")
     try:
         run(command, quiet=quiet)
     except subprocess.CalledProcessError as exc:
@@ -183,6 +188,8 @@ def get_resolve():
 
 
 def import_into_resolve(paths):
+    if not legacy_workflow_active():
+        return
     resolve = get_resolve()
     if not resolve:
         raise RuntimeError("Could not connect to Resolve. Is Resolve running and scripting enabled?")

@@ -24,6 +24,9 @@ mkdir -p "$DEST"
 
 # Docs
 cp "$REPO/README.md" "$REPO/LICENSE" "$DEST/"
+cp -R "$REPO/native-aac" "$DEST/"
+mkdir -p "$DEST/docs"
+cp "$REPO/docs/third-party.md" "$DEST/docs/"
 
 # Runtime payload (matches .github/workflows/release.yml, minus the installer scripts)
 cp "$REPO"/scripts/resolve_aac_*.py "$DEST/"

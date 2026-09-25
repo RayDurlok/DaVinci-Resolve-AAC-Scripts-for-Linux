@@ -19,6 +19,12 @@ class RetryTests(unittest.TestCase):
     def setUp(self):
         self.log_patch = patch.object(media_watch, "log")
         self.log_patch.start()
+        active = patch.object(media_watch, "legacy_workflow_active", return_value=True)
+        active.start()
+        self.addCleanup(active.stop)
+        stop = patch.object(media_watch, "STOP_PATH", Mock(exists=Mock(return_value=False)))
+        stop.start()
+        self.addCleanup(stop.stop)
 
     def tearDown(self):
         self.log_patch.stop()

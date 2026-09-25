@@ -16,7 +16,16 @@ jobs:
       - name: Check shell scripts
         run: |
           bash -n scripts/*.sh experiments/ffmpeg-patch/*.sh experiments/io-plugin/*.sh
+          bash -n native-aac/privileged.sh
 
       - name: Check Python scripts
         run: |
           python3 -m py_compile scripts/resolve_aac_*.py
+
+      - name: Install test dependencies
+        run: python3 -m pip install PySide6 python-xlib
+
+      - name: Test native AAC and watcher lifecycle
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 -m unittest discover -s tests -q

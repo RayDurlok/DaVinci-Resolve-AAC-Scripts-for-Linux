@@ -3,7 +3,43 @@
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-26
+
+- Make the Resolve ZIP updater remove existing native AAC components before
+  installation and reapply them after version verification when supported.
+  Share the native-operation lock, block toolkit launches during maintenance,
+  retain incomplete-update diagnostics and explain the manual update procedure.
+- Add a collapsed Welcome quick guide for workflow setup, everyday controls and
+  extras; align the README with Native/Legacy setup and separate update paths.
+- Add opt-in Native AAC settings for Resolve Studio 21: pinned, checksum-verified
+  resolve-aacfix installation, actual status checks and explicit backup restore.
+- Credit Seph Gentle (josephg) and Toxblh; retain MIT notice and document separate
+  GPL/LGPL dependencies and licensing scope.
+- Integrate the experimental direct AAC-LC export adapter as locally built source,
+  including matching FFmpeg headers, end-of-stream draining and MP4 configuration.
+- Keep old MediaPool conversion, export remux and Resolve-20 plugin under Legacy.
+  Existing settings are preserved; native mode suppresses conversion watchers.
+- Show a one-time architecture update notice with a link to the opt-in patch setup.
+  Toolkit updates never apply the Resolve patch automatically.
+- Replace the workflow dropdown with a direct Native/Legacy selector, move logs
+  and credits into a separate window, and keep the AAC page free of scrollbars.
+  Hide Legacy settings, pages and tray entries while Native mode is selected.
+- Include native export sources and notices in script and RPM packages. No Resolve
+  or third-party codec binaries are redistributed by the toolkit.
+- Enforce one toolkit instance per user with a process-held lock. Repeated tray,
+  settings and Resolve launch commands forward to that instance instead of
+  opening duplicate processes; crashes automatically release the lock.
+- Native mode stops MediaPool, timeline, export and folder watchers, including
+  separately launched watchers, and blocks Legacy menu actions until Legacy is
+  selected again. In-flight conversions finish writing but do not replace media
+  after the switch. Label Resolve menu scripts with `(Legacy)`.
+- Switching from Native to Legacy now restores both native components first;
+  cancellation or failure keeps Native selected. Reveal Legacy controls and
+  direct settings links immediately after a successful rollback.
+- Keep native install controls out of the Legacy view; show a brief workflow
+  comparison via an info icon beside the selector. Selecting Native starts patch setup when needed.
+- Visualize native activation and rollback as individual steps with a completed-step
+  progress bar, administrator approval state, and a final verification result.
 
 ## [0.2.5] - 2026-07-30
 

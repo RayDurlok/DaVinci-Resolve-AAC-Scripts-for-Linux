@@ -36,12 +36,14 @@ def run():
     if str(script_dir) not in sys.path:
         sys.path.insert(0, str(script_dir))
 
-    from resolve_aac_config import load_config
+    from resolve_aac_config import load_config, legacy_enabled
     from resolve_aac_import import get_resolve
     from resolve_aac_mediapool_watch import replace_media_pool_item
     from resolve_aac_timeline import current_timeline_item
 
     cfg = load_config()
+    if not legacy_enabled(cfg):
+        return "Native AAC is selected. Legacy menu scripts are disabled."
     cache_dir = Path(cfg["cache_dir"]).expanduser() if cfg.get("use_cache") else None
 
     resolve = get_resolve()

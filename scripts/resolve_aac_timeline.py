@@ -6,6 +6,7 @@ import json
 import sys
 import traceback
 from pathlib import Path
+from resolve_aac_config import legacy_workflow_active
 
 LOG_PATH = Path("/tmp/resolve_aac_current_clip.log")
 
@@ -298,6 +299,8 @@ def replace_timeline_audio(
     keep_original=False,
     quiet=False,
 ):
+    if not legacy_workflow_active():
+        return None
     output_dir = cache_output_dir_for_input(input_path, cache_dir) or output_dir_for_input(input_path, output_dir_override)
     log(f"Output dir: {output_dir}")
 
@@ -316,6 +319,8 @@ def replace_timeline_audio(
     if result.status == "error" or not result.output_path:
         raise RuntimeError(result.message or f"Could not convert {input_path}")
 
+    if not legacy_workflow_active():
+        return None
     audio_item = import_or_find(media_pool, result.output_path)
     if not audio_item:
         raise RuntimeError(f"Could not import converted media: {result.output_path}")
@@ -332,6 +337,8 @@ def replace_timeline_audio(
 
     placement_item = original_audio_item if original_audio_item else source_item
     clip_info = clip_info_for_timeline_item(placement_item, audio_item, audio_track)
+    if not legacy_workflow_active():
+        return None
     if original_audio_item and not keep_original:
         log(f"Deleting original audio on A{audio_track}")
         if original_audio_item != source_item:
@@ -365,6 +372,9 @@ def replace_audio_item(timeline, media_pool, audio_item, **kwargs):
 
 
 def main():
+    if not legacy_workflow_active():
+        log("Native AAC is selected. Legacy menu scripts are disabled.")
+        return 0
     log("=== Resolve AAC Current Clip started ===")
     parser = argparse.ArgumentParser(
         description="Convert the current Resolve timeline clip's AAC audio to PCM and place it on the timeline."

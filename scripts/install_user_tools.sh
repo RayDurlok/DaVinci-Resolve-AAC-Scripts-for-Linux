@@ -208,10 +208,6 @@ set -euo pipefail
 
 LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 
-if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
-  exit 0
-fi
-
 setsid "$APP_DIR/resolve_aac_tray.py" "\$@" >>"\$LOG" 2>&1 </dev/null &
 disown || true
 EOF
@@ -226,12 +222,6 @@ chmod +x "$BIN_DIR/resolve-aac-settings"
 cat > "$BIN_DIR/resolve-aac-start" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-
-if pgrep -u "\$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
-  mkdir -p "\$HOME/.config/resolve-aac-tools"
-  : > "\$HOME/.config/resolve-aac-tools/start_resolve.request"
-  exit 0
-fi
 
 LOG="\${RESOLVE_AAC_TRAY_LOG:-/tmp/DaVinciResolveToolkit.log}"
 setsid "$APP_DIR/resolve_aac_tray.py" --start-resolve "\$@" >>"\$LOG" 2>&1 </dev/null &

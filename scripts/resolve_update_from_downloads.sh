@@ -14,6 +14,8 @@ Usage: $(basename "$0") [options]
 
 Find a DaVinci Resolve Linux ZIP in Downloads, extract it to /tmp, and run the
 official installer with the Fedora-friendly package check bypass.
+Close Resolve first. Installed Native AAC components are removed before the
+update and reapplied afterwards if the new version is supported.
 
 Options:
   --zip PATH                 Use this ZIP instead of auto-detecting one.
@@ -21,7 +23,7 @@ Options:
   --tmp-dir DIR             Extract below this folder. Default: \${TMPDIR:-/tmp}
   --strict-package-check     Do not set SKIP_PACKAGE_CHECK=1.
   --no-launcher-refresh      Do not refresh the local Resolve start-menu wrapper.
-  -y, --yes                 Do not ask before running the installer.
+  -y, --yes                 Confirm the update and native AAC maintenance plan.
   -h, --help                Show this help.
 EOF
 }
@@ -159,6 +161,7 @@ done
 command -v unzip >/dev/null 2>&1 || die "unzip is required."
 command -v sudo >/dev/null 2>&1 || die "sudo is required."
 command -v sort >/dev/null 2>&1 || die "sort is required."
+command -v python3 >/dev/null 2>&1 || die "python3 is required."
 
 if [[ -z "$ZIP_PATH" ]]; then
   [[ -d "$DOWNLOAD_DIR" ]] || die "Downloads folder not found: $DOWNLOAD_DIR"
@@ -195,25 +198,14 @@ fi
 VERSION="$(version_from_zip "$ZIP_PATH" || true)"
 [[ -n "$VERSION" ]] || die "ZIP name does not look like a DaVinci Resolve Linux release: $ZIP_PATH"
 
-WORK_DIR="$TMP_ROOT/resolve-$VERSION"
+mkdir -p "$TMP_ROOT"
+WORK_DIR="$(mktemp -d "$TMP_ROOT/resolve-$VERSION.XXXXXXXX")"
 
 echo "Resolve ZIP: $ZIP_PATH"
 echo "Version:     $VERSION"
 echo "Work dir:    $WORK_DIR"
 echo
 
-if pgrep -af '/opt/resolve/bin/resolve' >/dev/null 2>&1; then
-  echo "DaVinci Resolve is currently running."
-  if [[ ! -t 0 ]]; then
-    die "Close Resolve first, then run this command again."
-  fi
-  read -r -p "Close Resolve, then press Enter to continue (Ctrl+C aborts). "
-  while pgrep -af '/opt/resolve/bin/resolve' >/dev/null 2>&1; do
-    read -r -p "Resolve still seems to be running. Press Enter after closing it. "
-  done
-fi
-
-mkdir -p "$WORK_DIR"
 echo "Extracting installer..."
 unzip -o "$ZIP_PATH" -d "$WORK_DIR"
 
@@ -231,25 +223,17 @@ else
   echo "Package check: strict"
 fi
 
-if [[ "$ASSUME_YES" -eq 0 ]]; then
-  echo
-  echo "This will run the official installer with sudo."
-  read -r -p "Continue? [y/N] " answer
-  case "$answer" in
-    y|Y|yes|YES)
-      ;;
-    *)
-      echo "Cancelled."
-      exit 0
-      ;;
-  esac
-fi
-
-echo
-if [[ "$SKIP_PACKAGE_CHECK" -eq 1 ]]; then
-  sudo env SKIP_PACKAGE_CHECK=1 "$RUN_FILE" -i
+edition=free
+if is_studio_zip "$ZIP_PATH"; then edition=studio; fi
+update_args=(--installer "$RUN_FILE" --version "$VERSION" --edition "$edition")
+if [[ "$ASSUME_YES" -eq 1 ]]; then update_args+=(--yes); fi
+if [[ "$SKIP_PACKAGE_CHECK" -eq 0 ]]; then update_args+=(--strict-package-check); fi
+if python3 "$(script_dir)/resolve_aac_update.py" "${update_args[@]}"; then
+  :
 else
-  sudo "$RUN_FILE" -i
+  result=$?
+  if [[ "$result" -eq 20 ]]; then exit 0; fi
+  exit "$result"
 fi
 
 echo
@@ -258,4 +242,4 @@ if [[ "$REFRESH_LAUNCHER" -eq 1 ]]; then
   echo
 fi
 
-echo "Installer finished. Start Resolve once to confirm the update."
+echo "Updater finished. Review the Native AAC result above before starting Resolve."

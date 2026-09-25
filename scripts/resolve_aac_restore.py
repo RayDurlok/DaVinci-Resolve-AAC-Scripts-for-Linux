@@ -38,11 +38,15 @@ def run():
     import time
 
     from resolve_aac_import import get_resolve
+    from resolve_aac_config import legacy_workflow_active
     from resolve_aac_timeline import (
         iter_media_pool_items,
         load_remux_map,
         media_pool_item_path,
     )
+
+    if not legacy_workflow_active():
+        return "Native AAC is selected. Legacy menu scripts are disabled."
 
     # Stop the watcher first, or it immediately re-remuxes what we restore.
     stop_file = Path("/tmp/resolve_aac_mediapool_watch.stop")
@@ -71,6 +75,8 @@ def run():
     missing = 0
     failed = 0
     for item in iter_media_pool_items(media_pool.GetRootFolder()):
+        if not legacy_workflow_active():
+            break
         raw_path = media_pool_item_path(item)
         if not raw_path:
             continue
