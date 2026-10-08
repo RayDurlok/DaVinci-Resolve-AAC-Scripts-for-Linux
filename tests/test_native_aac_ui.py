@@ -45,6 +45,23 @@ class NativePageTests(unittest.TestCase):
         self.window.update_native_status()
         self.app.processEvents()
 
+    def test_new_window_ignores_saved_fullscreen_dimensions(self):
+        config = dict(DEFAULT_CONFIG, window_width=3840, window_height=2160)
+        with patch.object(setup, "load_config", return_value=config):
+            window = setup.SetupWindow(first_run=True)
+        try:
+            self.assertEqual(window.width(), 880)
+            self.assertEqual(window.height(), max(600, window.minimumHeight()))
+            self.assertLess(window.height(), 700)
+            self.assertFalse(window.isMaximized())
+            self.assertFalse(window.isFullScreen())
+            window.resize(1920, 1080)
+            window.close()
+            saved = setup.save_config.call_args.args[0]
+            self.assertEqual((saved["window_width"], saved["window_height"]), (880, 600))
+        finally:
+            window.deleteLater()
+
     def finish_removal(self, code=0):
         self.window._native_action = "uninstall"
         with patch.object(self.window, "read_native_output"), patch.object(setup.QTimer, "singleShot"):

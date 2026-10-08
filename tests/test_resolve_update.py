@@ -250,6 +250,8 @@ class UpdaterShellTests(unittest.TestCase):
                 self.assertEqual(result.returncode, expected, result.stderr)
                 self.assertIn("resolve_aac_update.py", (root / "arguments").read_text())
                 self.assertIn("--edition\nstudio\n", (root / "arguments").read_text())
+                self.assertIn(f"--zip\n{archive}\n", (root / "arguments").read_text())
+                self.assertNotIn("--installer\n", (root / "arguments").read_text())
                 self.assertFalse((root / ".local/bin/resolve-with-fonts").exists())
 
 

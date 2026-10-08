@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+- Open Toolkit settings at the standard 880 x 600 window size instead of restoring
+  previously saved maximized dimensions.
+- Reuse already extracted Resolve installers after checking their SHA-256 against
+  the selected ZIP. Preserve manual extractions, retain temporary installers for
+  retries and remove toolkit-owned installer files after a successful update.
+- Prepare installers under the shared maintenance lock before changing Native AAC.
+
 ## [0.3.2] - 2026-10-08
 
 - Prevent privileged native AAC operations from leaving root-owned Python cache

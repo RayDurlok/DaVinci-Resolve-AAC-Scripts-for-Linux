@@ -158,7 +158,6 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-command -v unzip >/dev/null 2>&1 || die "unzip is required."
 command -v sudo >/dev/null 2>&1 || die "sudo is required."
 command -v sort >/dev/null 2>&1 || die "sort is required."
 command -v python3 >/dev/null 2>&1 || die "python3 is required."
@@ -198,25 +197,9 @@ fi
 VERSION="$(version_from_zip "$ZIP_PATH" || true)"
 [[ -n "$VERSION" ]] || die "ZIP name does not look like a DaVinci Resolve Linux release: $ZIP_PATH"
 
-mkdir -p "$TMP_ROOT"
-WORK_DIR="$(mktemp -d "$TMP_ROOT/resolve-$VERSION.XXXXXXXX")"
-
 echo "Resolve ZIP: $ZIP_PATH"
 echo "Version:     $VERSION"
-echo "Work dir:    $WORK_DIR"
 echo
-
-echo "Extracting installer..."
-unzip -o "$ZIP_PATH" -d "$WORK_DIR"
-
-mapfile -t run_files < <(find "$WORK_DIR" -maxdepth 1 -type f -name '*.run' | sort)
-[[ "${#run_files[@]}" -eq 1 ]] || die "Expected exactly one .run installer in $WORK_DIR, found ${#run_files[@]}."
-
-RUN_FILE="${run_files[0]}"
-chmod +x "$RUN_FILE"
-
-echo
-echo "Installer: $RUN_FILE"
 if [[ "$SKIP_PACKAGE_CHECK" -eq 1 ]]; then
   echo "Package check: bypassed with SKIP_PACKAGE_CHECK=1"
 else
@@ -225,7 +208,7 @@ fi
 
 edition=free
 if is_studio_zip "$ZIP_PATH"; then edition=studio; fi
-update_args=(--installer "$RUN_FILE" --version "$VERSION" --edition "$edition")
+update_args=(--zip "$ZIP_PATH" --tmp-dir "$TMP_ROOT" --version "$VERSION" --edition "$edition")
 if [[ "$ASSUME_YES" -eq 1 ]]; then update_args+=(--yes); fi
 if [[ "$SKIP_PACKAGE_CHECK" -eq 0 ]]; then update_args+=(--strict-package-check); fi
 if python3 "$(script_dir)/resolve_aac_update.py" "${update_args[@]}"; then

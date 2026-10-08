@@ -8,8 +8,10 @@ import os
 from pathlib import Path
 import signal
 import sys
+import tempfile
 
 import resolve_aac_native as native
+from resolve_aac_installer import prepare_installer
 
 
 def record(phase, message):
@@ -138,7 +140,10 @@ def run_update(installer, version, edition, skip_package_check=True, assume_yes=
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--installer", required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--installer", type=Path)
+    source.add_argument("--zip", type=Path)
+    parser.add_argument("--tmp-dir", type=Path, default=Path(tempfile.gettempdir()))
     parser.add_argument("--version", required=True)
     parser.add_argument("--edition", required=True, choices=("studio", "free"))
     parser.add_argument("--strict-package-check", action="store_true")
@@ -146,15 +151,26 @@ def main():
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise RuntimeError("Run the updater as your normal user, not with sudo. It requests privileges only when needed.")
-    if not args.installer.is_file() or args.installer.suffix != ".run":
+    if args.installer and (not args.installer.is_file() or args.installer.suffix != ".run"):
         raise RuntimeError("The extracted Resolve .run installer is missing.")
     def interrupted(_signum, _frame):
         raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGHUP, interrupted)
     with native.operation_lock():
-        return run_update(args.installer.resolve(), args.version, args.edition,
-                          not args.strict_package_check, args.yes)
+        native.require_closed()
+        prepared = prepare_installer(args.zip, args.version, args.tmp_dir) if args.zip else None
+        installer = prepared.path if prepared else args.installer.resolve()
+        result = None
+        try:
+            result = run_update(installer, args.version, args.edition,
+                                not args.strict_package_check, args.yes)
+            return result
+        finally:
+            if prepared and result == 0:
+                prepared.cleanup()
+            elif prepared and prepared.managed:
+                print(f"Installer kept for a verified retry: {installer}", flush=True)
 
 
 if __name__ == "__main__":

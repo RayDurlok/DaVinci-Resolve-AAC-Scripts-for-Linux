@@ -40,7 +40,7 @@ except ImportError:
     print("Install it with your distro package manager, for example python3-pyside6.", file=sys.stderr)
     raise SystemExit(2)
 
-from resolve_aac_config import APP_VERSION, NATIVE_AAC_NOTICE_VERSION, load_config, save_config
+from resolve_aac_config import APP_VERSION, DEFAULT_CONFIG, NATIVE_AAC_NOTICE_VERSION, load_config, save_config
 from resolve_aac_icons import info_icon
 from resolve_aac_toolkit_update import check_update_async
 
@@ -386,7 +386,10 @@ class SetupWindow(QWidget):
         if not _icon.isNull():
             self.setWindowIcon(_icon)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.resize(int(self.cfg.get("window_width", 880)), int(self.cfg.get("window_height", 600)))
+        # Discard old saved screen-sized dimensions; each new window starts compact.
+        for key in ("window_width", "window_height"):
+            self.cfg[key] = DEFAULT_CONFIG[key]
+        self.resize(self.cfg["window_width"], self.cfg["window_height"])
         self.setMinimumSize(760, 560)
         self.setStyleSheet(self.qss())
 
@@ -1547,9 +1550,6 @@ class SetupWindow(QWidget):
             QMessageBox.information(self, "Native AAC", "Please wait for the native AAC operation to finish.")
             event.ignore()
             return
-        # Remember the size so a manual resize sticks next time.
-        self.cfg["window_width"] = self.width()
-        self.cfg["window_height"] = getattr(self, "_welcome_compact_height", None) or self.height()
         if not self.first_run:
             if not self.cfg.get("setup_completed"):
                 self.cfg["native_aac_notice_version"] = NATIVE_AAC_NOTICE_VERSION

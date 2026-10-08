@@ -466,7 +466,7 @@ class ResolveAacTray(QObject):
         self.setup_window = SetupWindow(first_run=first_run)
         self.setup_window.settings_saved.connect(self.apply_saved_settings)
         self.setup_window.destroyed.connect(lambda *_args: setattr(self, "setup_window", None))
-        self.setup_window.show()
+        self.setup_window.showNormal()
         self.setup_window.raise_()
         self.setup_window.activateWindow()
 

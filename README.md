@@ -14,14 +14,16 @@ for Resolve Studio 21. **Legacy conversions** remain available for other version
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/01-welcome.png" alt="Guided setup"></td>
-    <td><img src="docs/screenshots/04-export.png" alt="Export options"></td>
+    <td><img src="docs/screenshots/01-welcome.png" alt="Welcome and Native AAC quick guide"></td>
+    <td><img src="docs/screenshots/07-native-aac.png" alt="Native AAC import and export settings"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/05-extras.png" alt="Menu scripts and font fix"></td>
-    <td><img src="docs/screenshots/06-native-dialogs.png" alt="Native KDE file dialogs"></td>
+    <td><img src="docs/screenshots/02-preferences.png" alt="Toolkit startup, logging and notifications"></td>
+    <td><img src="docs/screenshots/05-extras.png" alt="Native KDE file dialogs and font fix"></td>
   </tr>
 </table>
+
+Screenshots show example settings in the current interface.
 
 ## Install
 
@@ -159,6 +161,12 @@ The integrated updater (**Update DaVinci Resolve from a ZIP in Downloads**):
    the update and the installed version is supported. It never enables Native
    AAC for an installation that did not have it.
 
+Already extracted the ZIP? The updater checks beside the ZIP, in its same-named
+folder and in temporary folders from earlier attempts. It reuses an installer
+only when its contents match the ZIP. Manual extractions stay untouched;
+toolkit-created temporary files are removed after success or kept for a retry
+after cancellation/failure. Keep the ZIP available for verification.
+
 Administrator approval is still required. An unsupported version stays
 unpatched, with a warning; the updater does not switch to Legacy automatically.
 If installation is cancelled or fails, or repatching fails, keep Resolve closed
@@ -227,7 +235,7 @@ Native export is described above. The Legacy alternatives are:
 
 | Where | Controls |
 | --- | --- |
-| Welcome | Collapsed **Quick guide**, detected Resolve version and ZIP installer. |
+| Welcome | Collapsed **Quick guide**, detected Resolve version, ZIP installer and **Update Toolkit** when an update is available. |
 | Native AAC | Native/Legacy selector; **i** for a short comparison; activation, rollback, status refresh and diagnostic details. |
 | Preferences | **Start Toolkit at login**, **Mute notifications**, **Enable logging**, plus automatic import watching in Legacy mode. |
 | Legacy paths / export | Cache location, export remux and the Resolve 20 export plugin. Hidden in Native mode. |
@@ -254,10 +262,10 @@ The extras are optional:
   **Update DaVinci Resolve from a ZIP in Downloads** on Welcome. This updates Resolve,
   not the toolkit, and manages existing Native AAC components as described above.
 
-For troubleshooting, enable logging and use **Open launcher log** in the tray.
-The main log is `/tmp/DaVinciResolveToolkit.log`; Legacy Media Pool scan details
-are in `/tmp/resolve_aac_mediapool_watch.log`. Review logs for personal paths
-before sharing them.
+For troubleshooting, enable logging. **Open launcher log** in the tray opens
+`/tmp/resolve_aac_launcher.log`. Tray startup output is written separately to
+`/tmp/DaVinciResolveToolkit.log` by default; Legacy Media Pool scan details are in
+`/tmp/resolve_aac_mediapool_watch.log`. Review logs for personal paths before sharing them.
 
 ## Commands
 

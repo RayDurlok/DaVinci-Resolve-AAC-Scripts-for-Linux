@@ -60,23 +60,27 @@
   <screenshots>
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/01-welcome.png</image>
-      <caption>Guided setup detects DaVinci Resolve and ffmpeg</caption>
+      <caption>Welcome, Native AAC quick guide and Resolve updater</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/07-native-aac.png</image>
+      <caption>Native AAC import and export with paired installation and removal</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/02-preferences.png</image>
-      <caption>Preferences for automatic AAC remuxing and startup</caption>
+      <caption>Toolkit startup, logging and notification preferences</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/03-paths.png</image>
-      <caption>Choose where remuxed files are stored</caption>
+      <caption>Legacy fallback: choose where remuxed files are stored</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/04-export.png</image>
-      <caption>Export options for web-friendly AAC</caption>
+      <caption>Legacy fallback: export remux and the Resolve 20 plugin</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/05-extras.png</image>
-      <caption>Optional Resolve menu scripts and font fix</caption>
+      <caption>Optional native KDE file dialogs and font fix</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/RayDurlok/DaVinci-Resolve-AAC-Scripts-for-Linux/main/docs/screenshots/06-native-dialogs.png</image>
