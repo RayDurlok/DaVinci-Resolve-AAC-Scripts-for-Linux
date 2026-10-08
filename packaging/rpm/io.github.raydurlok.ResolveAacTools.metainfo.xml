@@ -10,17 +10,17 @@
 
   <description>
     <p>
-      DaVinci Resolve on Linux cannot import AAC audio. DaVinci Resolve Toolkit
-      converts AAC to PCM that Resolve can read on import, and adds a system tray
-      to control it, launch Resolve, and fix AAC audio in your exports. Video is
-      copied, not re-encoded, and your original files stay untouched.
+      DaVinci Resolve Toolkit adds opt-in experimental native AAC import and
+      AAC-LC export to supported Resolve Studio builds on Linux. A system tray
+      and settings window manage activation, rollback, launch actions and extras.
     </p>
     <p>
-      A guided setup window configures automatic remuxing, export fixes, cache
-      paths, native file dialogs, and optional Resolve menu scripts.
+      Legacy conversion workflows remain available for compatibility: AAC audio
+      is converted to PCM copies while video and original files stay untouched.
     </p>
     <p>Features:</p>
     <ul>
+      <li>Native AAC import and AAC-LC export with paired activation and removal</li>
       <li>Automatic AAC remuxing for imports and the media pool</li>
       <li>Remux the current clip or every media pool clip on demand from Resolve's Scripts menu</li>
       <li>Restore original sources to undo remuxing for a project at any time</li>
@@ -89,6 +89,18 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.3" date="2026-10-09">
+      <description>
+        <p>Improves native dialogs and manual Resolve ZIP updates.</p>
+        <ul>
+          <li>Native Relink and direct Deliver pickers on the verified Studio 21.1.1 Native AAC build</li>
+          <li>Background executable verification avoids the first Relink click delay</li>
+          <li>Render-location confirmations respect muted notifications</li>
+          <li>Studio 21.1.1 import-patch compatibility and verified installer reuse</li>
+          <li>Clear final update status and compact settings windows</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-10-08">
       <description>
         <p>Fixes permission errors when removing Native AAC or updating Resolve.</p>

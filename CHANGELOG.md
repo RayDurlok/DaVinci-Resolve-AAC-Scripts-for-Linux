@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-09
+
 - Add build-guarded native KDE Relink Clips / Media in Bin dialogs without guessing
   selected bins, and open Deliver's native picker before the old dialog is shown.
   Verify the executable in the background at startup to avoid the first-click
