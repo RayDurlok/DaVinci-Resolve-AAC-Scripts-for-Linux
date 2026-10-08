@@ -16,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import uuid
 from pathlib import Path
 
 PATCH_VERSION = "v0.1.1"
@@ -197,9 +198,27 @@ def prepare_package():
         for required in ("LICENSE", "THIRD-PARTY.md", "aac-patch-tree", "SHA256SUMS"):
             if not (source / required).is_file():
                 raise RuntimeError("Incomplete upstream release: " + required)
-        if PACKAGE_DIR.exists():
-            shutil.rmtree(PACKAGE_DIR)
-        shutil.copytree(source, PACKAGE_DIR, symlinks=True)
+        # Old privileged runs may have left root-owned Python caches. Moving the
+        # old tree only needs access to its parent; never delete it in place.
+        retired = None
+        if PACKAGE_DIR.exists() or PACKAGE_DIR.is_symlink():
+            retired = DATA_DIR / ("patch-retired-" + uuid.uuid4().hex)
+            PACKAGE_DIR.rename(retired)
+        try:
+            source.rename(PACKAGE_DIR)
+        except OSError:
+            if retired is not None:
+                retired.rename(PACKAGE_DIR)
+            raise
+        if retired is not None:
+            try:
+                if retired.is_symlink():
+                    retired.unlink()
+                else:
+                    shutil.rmtree(retired)
+            except OSError:
+                print("Old patch cache retained at " + str(retired) +
+                      "; cleanup was not permitted. Using the fresh verified package.", flush=True)
     return PACKAGE_DIR
 
 

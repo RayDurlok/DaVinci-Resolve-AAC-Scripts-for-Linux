@@ -1,6 +1,9 @@
 import hashlib
 import io
 import json
+import os
+import shlex
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -129,6 +132,96 @@ class InstallerTests(unittest.TestCase):
         with patch.object(native, "require_closed"), patch.object(native, "prepare_package", return_value=Path("/package")), patch.object(native, "privileged"), patch.object(native, "native_status", return_value={"import_active": True, "export_installed": False}):
             with self.assertRaisesRegex(RuntimeError, "incomplete"):
                 native.uninstall()
+
+
+class PackageRefreshTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.package = self.root / native.PATCH_VERSION
+        self.package.mkdir()
+        (self.package / "aac-fix").write_text("old package")
+        archive = self.root / "resolve-aacfix.tar.gz"
+        with tarfile.open(archive, "w:gz") as output:
+            for name in ("aac-fix", "LICENSE", "THIRD-PARTY.md", "aac-patch-tree", "SHA256SUMS"):
+                info = tarfile.TarInfo("release/" + name)
+                payload = b"fresh verified package"
+                info.size = len(payload)
+                output.addfile(info, io.BytesIO(payload))
+        for target, kwargs in (("DATA_DIR", {"new": self.root}), ("PACKAGE_DIR", {"new": self.package}),
+                               ("download_verified", {"return_value": archive})):
+            context = patch.object(native, target, **kwargs)
+            context.start()
+            self.addCleanup(context.stop)
+
+    def test_refresh_replaces_package_and_cleans_writable_previous_tree(self):
+        self.assertEqual(native.prepare_package(), self.package)
+        self.assertEqual((self.package / "aac-fix").read_text(), "fresh verified package")
+        self.assertEqual(list(self.root.glob("patch-retired-*")), [])
+        self.assertEqual(list(self.root.glob("patch-stage-*")), [])
+
+    @unittest.skipIf(os.geteuid() == 0, "Needs unprivileged filesystem permissions")
+    def test_read_only_python_cache_does_not_block_package_refresh(self):
+        relative = Path("vendor/pylibs/elftools/__pycache__")
+        protected = self.package / relative
+        protected.mkdir(parents=True)
+        (protected / "module.pyc").write_bytes(b"old cache")
+        protected.chmod(0o500)
+        try:
+            self.assertEqual(native.prepare_package(), self.package)
+            self.assertEqual((self.package / "aac-fix").read_text(), "fresh verified package")
+            retired = list(self.root.glob("patch-retired-*"))
+            self.assertEqual(len(retired), 1)
+            self.assertEqual((retired[0] / relative / "module.pyc").read_bytes(), b"old cache")
+            self.assertEqual((retired[0] / relative).stat().st_mode & 0o777, 0o500)
+            self.assertFalse((self.package / relative).exists())
+        finally:
+            for candidate in [self.package, *self.root.glob("patch-retired-*")]:
+                path = candidate / relative
+                if path.exists():
+                    path.chmod(0o700)
+
+    def test_failed_promotion_restores_previous_package(self):
+        rename = Path.rename
+        def fail_promotion(path, target):
+            if path.name == "release":
+                raise OSError("promotion failed")
+            return rename(path, target)
+        with patch.object(Path, "rename", fail_promotion):
+            with self.assertRaisesRegex(OSError, "promotion failed"):
+                native.prepare_package()
+        self.assertEqual((self.package / "aac-fix").read_text(), "old package")
+        self.assertEqual(list(self.root.glob("patch-retired-*")), [])
+
+    def test_invalid_extraction_keeps_previous_package_untouched(self):
+        with patch.object(native, "extract_verified", side_effect=RuntimeError("bad archive")):
+            with self.assertRaisesRegex(RuntimeError, "bad archive"):
+                native.prepare_package()
+        self.assertEqual((self.package / "aac-fix").read_text(), "old package")
+
+    def test_previous_symlink_is_removed_without_touching_its_target(self):
+        original = self.root / "unrelated"
+        self.package.rename(original)
+        self.package.symlink_to(original, target_is_directory=True)
+        native.prepare_package()
+        self.assertFalse(self.package.is_symlink())
+        self.assertEqual((original / "aac-fix").read_text(), "old package")
+
+    def test_privileged_patch_operations_disable_python_bytecode(self):
+        source = Path(__file__).resolve().parents[1] / "native-aac/privileged.sh"
+        helper = self.root / "helper.sh"
+        helper.write_text(source.read_text().replace("root=/opt/resolve", "root=" + shlex.quote(str(self.root / "resolve"))))
+        (self.package / "cache_fixture.py").write_text("value = 1\n")
+        (self.package / "aac-fix").write_text(
+            'python3 -c "import sys, cache_fixture; assert sys.dont_write_bytecode"\n')
+        env = dict(os.environ, PYTHONPATH=str(self.package), PYTHONDONTWRITEBYTECODE="")
+        for action in ("install-patch", "uninstall"):
+            with self.subTest(action=action):
+                result = subprocess.run(["bash", str(helper), action, str(self.package)], env=env,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse((self.package / "__pycache__").exists())
 
 
 class NativeWatcherTests(unittest.TestCase):

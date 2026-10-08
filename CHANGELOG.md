@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.2] - 2026-10-08
+
+- Prevent privileged native AAC operations from leaving root-owned Python cache
+  files. Replace existing patch caches without deleting them in place, so caches
+  affected by earlier versions no longer block patch removal or Resolve updates.
+
 ## [0.3.1] - 2026-10-08
 
 - Add Update Toolkit to Welcome and the tray menu. Use DNF for RPM installations

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Upstream imports vendored Python modules from the user's package cache.
+# Set this after elevation so sudo/pkexec cannot strip it from the environment.
+export PYTHONDONTWRITEBYTECODE=1
+
 case "${1:-}" in
     install-patch) step=import ;;
     install-export) step=export ;;
