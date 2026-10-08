@@ -70,7 +70,20 @@ the dependency checks).
 
 ### Update
 
-For a Fedora/Copr installation:
+When a newer version is available, **Update Toolkit** appears at the bottom left
+of Welcome (beside Continue) and in the tray menu. Update checks run in the
+background; no button is shown while checking, when up to date or if the check fails.
+Close Resolve and wait for any remux/render jobs to finish, then click the button.
+Confirm the update in the terminal that opens;
+Fedora/Copr uses DNF (administrator password), archive installs use the latest
+verified GitHub release. The toolkit restarts afterwards. Settings, cache and
+autostart are preserved; Resolve and its native AAC patch are not changed.
+
+Archive updates keep their application files under
+`~/.local/share/resolve-aac-tools/releases` (or `$XDG_DATA_HOME`). Do not delete the
+active release folder. Source checkouts must be updated through Git.
+
+Alternatively, for a Fedora/Copr installation:
 
 ```bash
 sudo dnf upgrade davinci-resolve-toolkit

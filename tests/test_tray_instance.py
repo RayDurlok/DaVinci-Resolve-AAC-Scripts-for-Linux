@@ -1,4 +1,5 @@
 import subprocess
+import os
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import resolve_aac_tray as tray
 import resolve_aac_setup as setup
+import resolve_aac_toolkit_update as toolkit_update
 
 
 class TrayInstanceTests(unittest.TestCase):
@@ -94,6 +96,33 @@ class TrayInstanceTests(unittest.TestCase):
         tray.ResolveAacTray.open_settings(helper)
         helper.setup_window.raise_.assert_called_once()
         helper.setup_window.activateWindow.assert_called_once()
+
+    def test_update_shutdown_waits_for_conversion_then_closes_settings_and_tray(self):
+        with tempfile.TemporaryDirectory() as directory:
+            request = Path(directory) / "update.request"
+            request.write_text(str(os.getpid()))
+            helper = SimpleNamespace(resolve_is_running=lambda: False,
+                                     setup_window=SimpleNamespace(native_process=None, close=Mock()), quit=Mock())
+            with patch.object(toolkit_update, "STOP_REQUEST", request), patch.object(toolkit_update, "require_idle") as idle:
+                idle.side_effect = RuntimeError("conversion in progress")
+                tray.ResolveAacTray.tick(helper)
+                helper.quit.assert_not_called()
+                idle.side_effect = None
+                tray.ResolveAacTray.tick(helper)
+            helper.setup_window.close.assert_called_once()
+            helper.quit.assert_called_once()
+
+    def test_other_instance_update_request_does_not_quit_this_tray(self):
+        with tempfile.TemporaryDirectory() as directory:
+            request = Path(directory) / "update.request"
+            request.write_text(str(os.getpid() + 1))
+            config = {"aac_mode": "native"}
+            helper = SimpleNamespace(config=config, quit=Mock(), reconcile_intercept_watcher=Mock(),
+                                     update_status=Mock(), consume_start_request=Mock())
+            with patch.object(toolkit_update, "STOP_REQUEST", request), patch.object(tray, "load_config", return_value=config):
+                tray.ResolveAacTray.tick(helper)
+            helper.quit.assert_not_called()
+            helper.update_status.assert_called_once()
 
 
 if __name__ == "__main__":

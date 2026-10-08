@@ -26,6 +26,7 @@ class NativePageTests(unittest.TestCase):
             ("save_config", {"side_effect": lambda cfg: cfg}),
             ("SetupWindow._refresh_resolve_info", {}),
             ("SetupWindow.native_operation", {}),
+            ("check_update_async", {}),
         ):
             mock = patch.object(setup, target, **kwargs) if "." not in target else patch(
                 "resolve_aac_setup." + target, **kwargs)
@@ -49,6 +50,43 @@ class NativePageTests(unittest.TestCase):
         with patch.object(self.window, "read_native_output"), patch.object(setup.QTimer, "singleShot"):
             self.window.native_finished(code, setup.QProcess.NormalExit)
         self.app.processEvents()
+
+    def test_toolkit_update_button_preserves_settings_and_uses_separate_updater(self):
+        self.window.open_page(0)
+        self.window.resize(760, 560)
+        self.window.toolkit_update_ready.emit(True)
+        self.app.processEvents()
+        button = self.window.toolkit_update_btn
+        self.assertTrue(button.isVisible())
+        self.assertFalse(button.icon().isNull())
+        self.assertEqual(button.geometry().center().y(), self.window.next_btn.geometry().center().y())
+        self.assertEqual(button.x(), self.window.layout().contentsMargins().left())
+        self.assertGreater(button.y(), self.window.stack.geometry().bottom())
+        self.assertGreaterEqual(button.width(), button.sizeHint().width())
+        with patch.object(setup, "tray_helper") as helper:
+            button.click()
+        helper.return_value.launch_toolkit_updater.assert_called_once_with()
+        helper.return_value.launch_resolve_updater.assert_not_called()
+        setup.save_config.assert_called_with(self.window.cfg)
+
+    def test_update_button_stays_hidden_until_new_version_is_confirmed(self):
+        self.window.open_page(0)
+        setup.check_update_async.assert_called_once()
+        self.assertFalse(self.window.toolkit_update_btn.isVisible())
+        self.window.toolkit_update_ready.emit(False)
+        self.assertFalse(self.window.toolkit_update_btn.isVisible())
+        self.window.toolkit_update_ready.emit(True)
+        self.assertTrue(self.window.toolkit_update_btn.isVisible())
+        self.window.open_page(1)
+        self.assertFalse(self.window.toolkit_update_btn.isVisible())
+        self.assertTrue(self.window.back_btn.isVisible())
+        self.window.open_page(0)
+        self.assertTrue(self.window.toolkit_update_btn.isVisible())
+        self.assertFalse(self.window.back_btn.isVisible())
+        self.window.rebuild_pages()
+        self.assertTrue(self.window.toolkit_update_btn.isVisible())
+        self.window.toolkit_update_ready.emit(False)
+        self.assertFalse(self.window.toolkit_update_btn.isVisible())
 
     def test_welcome_guide_starts_collapsed_and_toggles_with_keyboard(self):
         from PySide6.QtTest import QTest
@@ -140,7 +178,8 @@ class NativePageTests(unittest.TestCase):
         self.assertFalse(self.window.welcome_guide_btn.isChecked())
         self.assertTrue(self.window.welcome_update_hint.isVisible())
         self.assertIn("disable Native AAC", self.window.welcome_update_hint.text())
-        self.assertIn(setup.DANGER, self.window.welcome_update_hint.styleSheet())
+        self.assertIn(setup.MUTED, self.window.welcome_update_hint.styleSheet())
+        self.assertLess(len(self.window.welcome_update_hint.text()), 100)
         with patch.object(setup, "tray_helper") as helper:
             self.window.welcome_update_btn.click()
             helper.return_value.launch_resolve_updater.assert_called_once()

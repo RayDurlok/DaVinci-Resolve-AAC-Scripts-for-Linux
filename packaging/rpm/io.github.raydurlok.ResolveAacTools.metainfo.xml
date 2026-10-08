@@ -85,6 +85,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.1" date="2026-10-08">
+      <description>
+        <p>Update the toolkit directly from Welcome or the tray menu.</p>
+        <ul>
+          <li>Background checks show the update button only when an update is available</li>
+          <li>RPM and archive updates preserve settings, cache and the Resolve AAC patch</li>
+          <li>Toolkit restarts after updating; Welcome uses a shorter, neutral reminder</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-09-26">
       <description>
         <p>Adds opt-in experimental native AAC support for Resolve Studio 21.</p>

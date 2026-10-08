@@ -42,6 +42,7 @@ except ImportError:
 
 from resolve_aac_config import APP_VERSION, NATIVE_AAC_NOTICE_VERSION, load_config, save_config
 from resolve_aac_icons import info_icon
+from resolve_aac_toolkit_update import check_update_async
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -366,17 +367,20 @@ class StepDots(QWidget):
 class SetupWindow(QWidget):
     settings_saved = Signal(dict)
     resolve_info_ready = Signal(object)
+    toolkit_update_ready = Signal(bool)
 
     def __init__(self, parent=None, first_run=False):
         super().__init__(parent)
         self.cfg = load_config()
         self.first_run = first_run
         self._recheck_in_flight = False
+        self._toolkit_update_available = False
         self.native_process = None
         self.native_state = {}
         self._native_select_after_check = False
         self._progress_buffer = ""
         self.resolve_info_ready.connect(self._apply_resolve_info)
+        self.toolkit_update_ready.connect(self._apply_toolkit_update)
         self.setWindowTitle("DaVinci Resolve Toolkit")
         _icon = app_icon()
         if not _icon.isNull():
@@ -424,11 +428,19 @@ class SetupWindow(QWidget):
         self.back_btn.setObjectName("ghost")
         self.back_btn.setCursor(Qt.PointingHandCursor)
         self.back_btn.clicked.connect(lambda: self.go(-1))
+        self.toolkit_update_btn = QPushButton("Update Toolkit")
+        self.toolkit_update_btn.setIcon(QIcon.fromTheme("system-software-update", self.style().standardIcon(QStyle.SP_BrowserReload)))
+        self.toolkit_update_btn.setObjectName("ghost")
+        self.toolkit_update_btn.setCursor(Qt.PointingHandCursor)
+        self.toolkit_update_btn.setToolTip("Install the available toolkit update. Settings and cache are kept; Resolve and its AAC patch are unchanged.")
+        self.toolkit_update_btn.clicked.connect(self.update_toolkit)
+        self.toolkit_update_btn.hide()
         self.next_btn = QPushButton("Continue")
         self.next_btn.setObjectName("primary")
         self.next_btn.setCursor(Qt.PointingHandCursor)
         self.next_btn.clicked.connect(lambda: self.go(1))
         footer.addWidget(self.back_btn)
+        footer.addWidget(self.toolkit_update_btn)
         footer.addStretch(1)
         footer.addWidget(self.next_btn)
         root.addLayout(footer)
@@ -443,6 +455,7 @@ class SetupWindow(QWidget):
         ]
         self.index = 0
         self.sync()
+        check_update_async(SCRIPT_DIR, self.toolkit_update_ready.emit)
 
     def page_welcome(self):
         page = QWidget()
@@ -495,9 +508,8 @@ class SetupWindow(QWidget):
         self.welcome_update_btn.clicked.connect(self.update_resolve)
         card_layout.addWidget(self.welcome_update_btn, 0, Qt.AlignLeft)
         self.welcome_update_hint = make_label(
-            "Before updating Resolve: close it and disable Native AAC, or use this updater "
-            "to handle patch removal and reactivation automatically when supported.",
-            12, QFont.Normal, DANGER)
+            "Close Resolve before updating. For manual updates, disable Native AAC first.",
+            12, QFont.Normal, MUTED)
         card_layout.addWidget(self.welcome_update_hint)
         layout.addWidget(self.welcome_card)
 
@@ -576,6 +588,16 @@ class SetupWindow(QWidget):
         super().resizeEvent(event)
         if getattr(self, "index", None) == 0:
             QTimer.singleShot(0, self.fit_welcome_contents)
+
+    def _apply_toolkit_update(self, available):
+        self._toolkit_update_available = available
+        self.toolkit_update_btn.setVisible(available and self.index == 0)
+
+    def update_toolkit(self):
+        self.settings_saved.emit(save_config(self.cfg))
+        helper = tray_helper()
+        helper.error = lambda title, message: QMessageBox.warning(self, title, message)
+        helper.launch_toolkit_updater()
 
     def update_resolve(self):
         try:
@@ -1467,6 +1489,7 @@ class SetupWindow(QWidget):
         self.dots.count = len(pages)
         self.dots.set_index(pages.index(self.index))
         self.back_btn.setVisible(self.index > 0)
+        self.toolkit_update_btn.setVisible(self.index == 0 and self._toolkit_update_available)
         self.next_btn.setText("Finish" if self.index == self.stack.count() - 1 else "Continue")
         self.fit_welcome_contents()
 

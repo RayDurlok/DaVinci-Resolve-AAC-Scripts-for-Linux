@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -205,6 +205,11 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Oct 08 2026 RayDurlok <noreply@example.com> - 0.3.1-1
+- Add background update checks and an installation-aware Toolkit update button
+- Preserve settings, cache and menu links when updating; restart the tray safely
+- Simplify the Welcome update reminder
+
 * Sat Sep 26 2026 RayDurlok <noreply@example.com> - 0.3.0-1
 - Add opt-in native AAC import and AAC-LC export for Resolve Studio 21
 - Keep conversion workflows as Legacy and stop them in Native mode

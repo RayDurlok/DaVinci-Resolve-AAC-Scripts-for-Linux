@@ -348,6 +348,10 @@ echo "Output: $HOME/Resolve AAC Imports"
 # Start the tray so the freshly installed tools are ready to use. If one is
 # already running (i.e. this is an update), stop it and its watchers first so the
 # new code is loaded before it starts again.
+if [[ "${RESOLVE_AAC_INSTALL_NO_START:-0}" == "1" ]]; then
+  echo "Installation complete; the toolkit updater will restart the tray."
+  exit 0
+fi
 if pgrep -u "$(id -u)" -f 'python.*resolve_aac_tray.py' >/dev/null 2>&1; then
   echo
   echo "Restarting the running Resolve AAC tray to apply the update..."

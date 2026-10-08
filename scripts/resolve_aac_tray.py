@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 
 try:
-    from PySide6.QtCore import Qt, QObject, QTimer, QUrl
+    from PySide6.QtCore import Qt, QObject, QProcess, QTimer, QUrl, Signal
     from PySide6.QtGui import QAction, QDesktopServices, QIcon, QPixmap
     from PySide6.QtWidgets import (
         QApplication,
@@ -176,6 +176,8 @@ def parse_args(argv=None):
 
 
 class ResolveAacTray(QObject):
+    toolkit_update_ready = Signal(bool)
+
     def __init__(self, start_resolve=False):
         self.app = QApplication(sys.argv)
         super().__init__()
@@ -352,6 +354,14 @@ class ResolveAacTray(QObject):
         )
         self.resolve_font_action.triggered.connect(self.handle_resolve_font_action)
         self.menu.addAction(self.resolve_font_action)
+
+        self.toolkit_update_action = QAction("Update Toolkit...")
+        self.toolkit_update_action.setVisible(False)
+        self.toolkit_update_ready.connect(self.toolkit_update_action.setVisible)
+        self.toolkit_update_action.setToolTip("Install toolkit updates from your package repository or GitHub. Does not update Resolve.")
+        self.toolkit_update_action.triggered.connect(self.launch_toolkit_updater)
+        self.menu.addAction(self.toolkit_update_action)
+        self.menu.aboutToShow.connect(self.check_toolkit_update)
 
         self.resolve_update_action = QAction("Install Resolve ZIP from Downloads")
         self.resolve_update_action.setToolTip(
@@ -1348,6 +1358,40 @@ Name[en_US]=DaVinci Resolve
 
         self.update_resolve_font_action()
 
+    def check_toolkit_update(self):
+        from resolve_aac_toolkit_update import check_update_async
+        check_update_async(SCRIPT_DIR, self.toolkit_update_ready.emit)
+
+    def launch_toolkit_updater(self):
+        from resolve_aac_native import operation_in_progress, require_closed
+        from resolve_aac_toolkit_update import installation_kind, require_idle
+        try:
+            installation_kind(SCRIPT_DIR)
+            require_closed()
+            require_idle()
+            if operation_in_progress():
+                raise RuntimeError("Another update or native AAC operation is still running.")
+            self.launch_update_terminal([
+                sys.executable, str(SCRIPT_DIR / "resolve_aac_toolkit_update.py"),
+                "--tray-pid", str(os.getpid()),
+            ])
+        except Exception as exc:
+            self.error("Could not start Toolkit updater", str(exc))
+
+    def launch_update_terminal(self, arguments):
+        terminals = [
+            ("konsole", ["konsole", "-e"]),
+            ("xterm", ["xterm", "-e"]),
+            ("gnome-terminal", ["gnome-terminal", "--"]),
+            ("xfce4-terminal", ["xfce4-terminal", "-x"]),
+            ("x-terminal-emulator", ["x-terminal-emulator", "-e"]),
+        ]
+        for executable, command in terminals:
+            if shutil.which(executable):
+                subprocess.Popen(command + arguments, env=self.current_env(), start_new_session=True)
+                return
+        raise RuntimeError("No supported terminal was found. Use the README update commands instead.")
+
     def launch_resolve_updater(self):
         updater = self.resolve_updater_path()
         if not updater.exists():
@@ -1487,6 +1531,23 @@ Name[en_US]=DaVinci Resolve
             action()
 
     def tick(self):
+        from resolve_aac_toolkit_update import STOP_REQUEST, require_idle
+        try:
+            update_requested = STOP_REQUEST.read_text().strip() == str(os.getpid())
+        except OSError:
+            update_requested = False
+        if update_requested and not self.resolve_is_running():
+            window = getattr(self, "setup_window", None)
+            process = getattr(window, "native_process", None)
+            if process is None or process.state() == QProcess.NotRunning:
+                try:
+                    require_idle()
+                except RuntimeError:
+                    return
+                if window is not None:
+                    window.close()
+                self.quit()
+                return
         saved = load_config()
         if saved != self.config:
             self.apply_saved_settings(saved)

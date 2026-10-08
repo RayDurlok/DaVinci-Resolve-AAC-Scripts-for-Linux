@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.1] - 2026-10-08
+
+- Add Update Toolkit to Welcome and the tray menu. Use DNF for RPM installations
+  and checksum-verified GitHub releases for archive installations, with confirmation,
+  toolkit restart and preserved settings/cache. Keep Resolve updates separate and
+  refuse to overwrite source checkouts.
+- Show the update button at the bottom left beside Continue only after a background
+  check confirms an available update for the active installation.
+- Shorten the Resolve update reminder and use a neutral text color.
+
 ## [0.3.0] - 2026-09-26
 
 - Make the Resolve ZIP updater remove existing native AAC components before

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 # Keep in sync with the RPM spec Version (packaging/rpm/resolve-aac-tools.spec).
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 NATIVE_AAC_NOTICE_VERSION = 1
 
 CONFIG_DIR = Path.home() / ".config" / "resolve-aac-tools"
