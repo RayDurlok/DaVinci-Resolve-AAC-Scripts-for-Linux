@@ -197,6 +197,53 @@ class RetryTests(unittest.TestCase):
 
 
 class DialogTests(unittest.TestCase):
+    def test_render_location_notification_respects_mute(self):
+        with (
+            patch.object(set_render_location, "load_config", return_value={"mute_notifications": True}),
+            patch.object(set_render_location.shutil, "which", return_value="/usr/bin/notify-send"),
+            patch.object(set_render_location.subprocess, "run") as run,
+            patch("builtins.print") as log,
+        ):
+            set_render_location.notify("Location updated")
+            run.assert_not_called()
+            log.assert_called_once_with("Location updated")
+
+    def test_render_location_errors_remain_visible_when_muted(self):
+        with (
+            patch.object(set_render_location, "load_config", return_value={"mute_notifications": True}),
+            patch.object(set_render_location.shutil, "which", return_value="/usr/bin/notify-send"),
+            patch.object(set_render_location.subprocess, "run") as run,
+            patch("builtins.print"),
+        ):
+            set_render_location.notify("Cannot connect to Resolve", critical=True)
+            run.assert_called_once_with(
+                ["notify-send", "-a", "DaVinci Resolve", "-u", "critical",
+                 "Render location", "Cannot connect to Resolve"], check=False)
+
+    def test_render_location_mute_changes_apply_without_restart(self):
+        with (
+            patch.object(set_render_location, "load_config", side_effect=[
+                {"mute_notifications": True}, {"mute_notifications": False}]),
+            patch.object(set_render_location.shutil, "which", return_value="/usr/bin/notify-send"),
+            patch.object(set_render_location.subprocess, "run") as run,
+            patch("builtins.print"),
+        ):
+            set_render_location.notify("Muted")
+            set_render_location.notify("Enabled")
+            run.assert_called_once_with(
+                ["notify-send", "-a", "DaVinci Resolve", "Render location", "Enabled"], check=False)
+
+    def test_render_location_without_notification_program_still_logs(self):
+        with (
+            patch.object(set_render_location, "load_config", return_value={}),
+            patch.object(set_render_location.shutil, "which", return_value=None),
+            patch.object(set_render_location.subprocess, "run") as run,
+            patch("builtins.print") as log,
+        ):
+            set_render_location.notify("Location updated")
+            run.assert_not_called()
+            log.assert_called_once_with("Location updated")
+
     def test_relink_dialog_is_not_intercepted(self):
         self.assertEqual(dialog_watch.INTERCEPT_TITLES, {dialog_watch.FILE_DESTINATION_TITLE})
 

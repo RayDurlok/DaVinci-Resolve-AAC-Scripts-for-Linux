@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FONT_DIRS="/usr/share/fonts;/usr/local/share/fonts"
 
 if [[ -d /usr/local/share/fonts ]]; then
@@ -49,19 +50,21 @@ preload_system_glib_if_needed
 # User-writable location so this works from both the git tree and a /usr RPM install.
 RESOLVE_QT_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/resolve-aac-tools/qt-plugins"
 PORTAL_PLUGIN="$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so"
-if [[ ! -e "$PORTAL_PLUGIN" ]]; then
-  for base in /usr/lib64/qt5/plugins/platformthemes /usr/lib/qt5/plugins/platformthemes \
-              /usr/lib/x86_64-linux-gnu/qt5/plugins/platformthemes /usr/lib/qt/plugins/platformthemes; do
-    if [[ -e "$base/libqxdgdesktopportal.so" ]]; then
-      mkdir -p "$RESOLVE_QT_PLUGINS/platformthemes"
-      ln -sf "$base/libqxdgdesktopportal.so" "$PORTAL_PLUGIN"
-      break
-    fi
-  done
-fi
-if [[ -e "$PORTAL_PLUGIN" ]]; then
-  export QT_QPA_PLATFORMTHEME=xdgdesktopportal
-  export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+if python3 "$APP_DIR/resolve_aac_dialogs.py" --enabled; then
+  if [[ ! -e "$PORTAL_PLUGIN" ]]; then
+    for base in /usr/lib64/qt5/plugins/platformthemes /usr/lib/qt5/plugins/platformthemes \
+                /usr/lib/x86_64-linux-gnu/qt5/plugins/platformthemes /usr/lib/qt/plugins/platformthemes; do
+      if [[ -e "$base/libqxdgdesktopportal.so" ]]; then
+        mkdir -p "$RESOLVE_QT_PLUGINS/platformthemes"
+        ln -sf "$base/libqxdgdesktopportal.so" "$PORTAL_PLUGIN"
+        break
+      fi
+    done
+  fi
+  if [[ -e "$PORTAL_PLUGIN" ]]; then
+    export QT_QPA_PLATFORMTHEME=xdgdesktopportal
+    export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+  fi
 fi
 
-exec /opt/resolve/bin/resolve "$@"
+exec python3 "$APP_DIR/resolve_aac_dialogs.py" --exec /opt/resolve/bin/resolve "$@"

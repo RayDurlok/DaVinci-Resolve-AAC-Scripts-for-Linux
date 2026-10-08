@@ -19,3 +19,20 @@ only 48 kHz stereo is supported. Retain Legacy for production fallback.
 
 The upstream import patch and this export plugin are separate components.
 The latter is not an export feature provided or endorsed by resolve-aacfix.
+
+## Studio 21.1.1 Compatibility
+
+The toolkit applies a small source-verified overlay to upstream v0.1.1 during
+package preparation. Studio 21.1.1 uses `r12d` instead of `r15d` for the QuickTime
+codec dispatch. Both the signature verifier and the redirect argument are
+adapted; a matching pattern alone would not be enough. Only those two register
+allocations are accepted. Unknown upstream source hashes, ambiguous sites and
+unexpected instructions still stop the patch.
+
+Offline validation on Studio 21.1.0 and 21.1.1 found all signature sites and
+produced all eight patches, including Matroska, on separate binary copies.
+This does **not** yet validate playback, waveforms or AAC export on 21.1.1.
+Keep the existing installation until an interactive smoke test is completed.
+
+The overlay is toolkit-maintained, not an upstream release. Its implementation
+is in `scripts/resolve_aac_patch_compat.py`; upstream's MIT attribution remains.

@@ -51,7 +51,10 @@ class UpdateTests(unittest.TestCase):
         return json.loads((self.root / "update-state.json").read_text())
 
     def test_remove_install_verify_reapply_in_order(self):
-        self.assertEqual(self.execute(), 0)
+        summary = self.root / "summary"
+        self.assertEqual(self.execute(summary_file=summary), 0)
+        self.assertIn("Resolve 21.2.0 updated and verified", summary.read_text())
+        self.assertIn("Native AAC: import + export active and verified", summary.read_text())
         self.assertEqual(self.events, ["remove", "installer", "patch"])
         self.assertEqual(self.journal()["phase"], "complete")
         command = self.run.call_args.args[0]
@@ -61,14 +64,18 @@ class UpdateTests(unittest.TestCase):
     def test_legacy_update_does_not_enable_native(self):
         self.status.side_effect = None
         self.status.return_value = state()
-        self.assertEqual(self.execute(skip_package_check=False), 0)
+        summary = self.root / "summary"
+        self.assertEqual(self.execute(skip_package_check=False, summary_file=summary), 0)
+        self.assertIn("Native AAC: not installed (unchanged)", summary.read_text())
         self.assertEqual(self.events, ["installer"])
         self.assertEqual(self.run.call_args.args[0][-1], "0")
         self.prepare.assert_not_called()
 
     def test_cancel_changes_nothing_and_returns_shell_handoff_code(self):
+        summary = self.root / "summary"
         with patch("builtins.input", return_value="n"):
-            self.assertEqual(self.execute(assume_yes=False), 20)
+            self.assertEqual(self.execute(assume_yes=False, summary_file=summary), 20)
+        self.assertFalse(summary.exists())
         self.assertEqual(self.events, [])
         self.assertFalse((self.root / "update-state.json").exists())
 
@@ -121,8 +128,10 @@ class UpdateTests(unittest.TestCase):
 
     def test_failed_installer_never_reapplies_or_restores_old_files(self):
         self.run.side_effect = subprocess.CalledProcessError(1, "installer")
+        summary = self.root / "summary"
         with self.assertRaises(subprocess.CalledProcessError):
-            self.execute()
+            self.execute(summary_file=summary)
+        self.assertFalse(summary.exists())
         self.remove.assert_called_once()
         self.install.assert_not_called()
         self.assertEqual(self.journal()["phase"], "incomplete")
@@ -141,7 +150,10 @@ class UpdateTests(unittest.TestCase):
 
     def test_unsupported_target_is_removed_but_not_patched(self):
         self.info.return_value = ("22.0.0", "studio")
-        self.assertEqual(self.execute(version="22"), 0)
+        summary = self.root / "summary"
+        self.assertEqual(self.execute(version="22", summary_file=summary), 0)
+        self.assertIn("Native AAC: disabled because this version is unsupported", summary.read_text())
+        self.assertNotIn("You can start Resolve now", summary.read_text())
         self.assertEqual(self.events, ["remove", "installer"])
         self.assertEqual(self.journal()["phase"], "unsupported")
 
@@ -208,6 +220,50 @@ class UpdateStatusTests(unittest.TestCase):
 
 
 class UpdaterShellTests(unittest.TestCase):
+    def test_shell_ends_with_current_result_and_removes_private_summary(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/resolve_update_from_downloads.sh"
+        with tempfile.TemporaryDirectory(prefix="resolve summary test ") as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            fake = root / "bin/python3"
+            fake.write_text(
+                '#!/bin/sh\n'
+                'while [ "$#" -gt 0 ]; do\n'
+                '  if [ "$1" = --summary-file ]; then\n'
+                '    shift\n'
+                '    printf "%s" "$1" > "$HOME/summary-path"\n'
+                '    [ -z "$TEST_SUMMARY" ] || printf "%s\\n" "$TEST_SUMMARY" > "$1"\n'
+                '    break\n'
+                '  fi\n'
+                '  shift\n'
+                'done\nexit 0\n')
+            fake.chmod(0o755)
+            sudo = root / "bin/sudo"
+            sudo.write_text("#!/bin/sh\nexit 99\n")
+            sudo.chmod(0o755)
+            archive = root / "DaVinci_Resolve_Studio_21.2_Linux.zip"
+            archive.touch()
+            messages = (
+                "Native AAC: import + export active and verified.",
+                "Native AAC: not installed (unchanged).",
+                "Native AAC: disabled because this version is unsupported.",
+                "",
+            )
+            for message in messages:
+                with self.subTest(message=message):
+                    env = dict(os.environ, HOME=str(root), TMPDIR=str(root),
+                               PATH=str(root / "bin") + ":" + os.environ["PATH"], TEST_SUMMARY=message)
+                    result = subprocess.run(["bash", str(script), "--zip", str(archive),
+                                             "--no-launcher-refresh", "--yes"],
+                                            env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0 if message else 1, result.stderr)
+                    if message:
+                        self.assertEqual(result.stdout.strip().splitlines()[-1], message)
+                    else:
+                        self.assertIn("Update result is missing", result.stderr)
+                    self.assertNotIn("result above", result.stdout)
+                    self.assertFalse(Path((root / "summary-path").read_text()).exists())
+
     def test_privileged_installer_refuses_leftover_backups(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

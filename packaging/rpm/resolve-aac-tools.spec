@@ -37,6 +37,10 @@ Requires:       kdialog
 Requires:       python3-pyside6
 Requires:       python3-xlib
 Requires:       /usr/bin/xprop
+# The source-only dialog bridge is built against each user's Resolve Qt libraries.
+Requires:       /usr/bin/c++
+Requires:       /usr/bin/pkg-config
+Requires:       qt5-qtbase-devel
 Recommends:     rsms-inter-fonts
 
 %description
@@ -56,7 +60,7 @@ be installed from Settings.
 # --- runtime scripts -> /usr/share/resolve-aac-tools ---
 install -d %{buildroot}%{sharedir}
 install -p -m0755 *.py *.sh %{buildroot}%{sharedir}/
-cp -a native-aac docs %{buildroot}%{sharedir}/
+cp -a native-aac native-dialogs docs %{buildroot}%{sharedir}/
 
 # --- CLI wrappers -> /usr/bin (mirror install_user_tools.sh, pointed at %{sharedir}) ---
 install -d %{buildroot}%{_bindir}

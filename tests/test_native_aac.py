@@ -150,6 +150,7 @@ class PackageRefreshTests(unittest.TestCase):
                 info.size = len(payload)
                 output.addfile(info, io.BytesIO(payload))
         for target, kwargs in (("DATA_DIR", {"new": self.root}), ("PACKAGE_DIR", {"new": self.package}),
+                               ("apply_compatibility", {}),
                                ("download_verified", {"return_value": archive})):
             context = patch.object(native, target, **kwargs)
             context.start()
@@ -199,6 +200,13 @@ class PackageRefreshTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "bad archive"):
                 native.prepare_package()
         self.assertEqual((self.package / "aac-fix").read_text(), "old package")
+
+    def test_rejected_compatibility_overlay_keeps_previous_package(self):
+        with patch.object(native, "apply_compatibility", side_effect=RuntimeError("unknown source")):
+            with self.assertRaisesRegex(RuntimeError, "unknown source"):
+                native.prepare_package()
+        self.assertEqual((self.package / "aac-fix").read_text(), "old package")
+        self.assertEqual(list(self.root.glob("patch-retired-*")), [])
 
     def test_previous_symlink_is_removed_without_touching_its_target(self):
         original = self.root / "unrelated"

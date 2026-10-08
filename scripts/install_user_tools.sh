@@ -75,6 +75,22 @@ install_pyside6() {
   fi
 }
 
+install_dialog_build_deps() {
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y gcc-c++ qt5-qtbase-devel pkgconf-pkg-config
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y g++ qtbase5-dev pkg-config
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --needed gcc qt5-base pkgconf
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper install -y gcc-c++ libqt5-qtbase-devel pkg-config
+  else
+    echo "Install a C++ compiler, pkg-config and Qt5 development headers for native Relink."
+    return 1
+  fi
+}
+
 check_dependencies() {
   if [ "$SKIP_DEPS" -eq 1 ]; then
     return 0
@@ -104,6 +120,14 @@ check_dependencies() {
   fi
 
   if command -v python3 >/dev/null 2>&1; then
+    if ! python3 "$APP_DIR/resolve_aac_dialogs.py" --check-build-deps >/dev/null 2>&1; then
+      echo "Native Relink and direct Deliver dialogs need a C++ compiler and Qt5 development headers."
+      if prompt_yes_no "Install native dialog build dependencies now?"; then
+        install_dialog_build_deps || true
+      else
+        echo "Keeping the original Relink dialog and existing Deliver watcher as fallback."
+      fi
+    fi
     missing_python_modules=()
     if ! python3 -c "import gi" >/dev/null 2>&1; then
       missing_python_modules+=("gi")

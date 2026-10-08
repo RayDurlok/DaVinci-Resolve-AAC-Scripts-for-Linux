@@ -1328,7 +1328,7 @@ class SetupWindow(QWidget):
         layout.setSpacing(12)
         self.kde_dialog_row = self._config_toggle_row(
             "intercept_deliver_browse", "Native KDE file dialogs",
-            "Native file pickers and Deliver destination. Relink stays in Resolve.")
+            "Native pickers, plus direct Relink and Deliver dialogs on verified builds. Restart Resolve after changing.")
         layout.addWidget(self.kde_dialog_row)
 
         self.font_btn = QPushButton()

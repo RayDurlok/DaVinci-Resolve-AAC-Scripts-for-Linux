@@ -19,6 +19,7 @@ jobs:
           mkdir -p resolve-aac-tools
           cp README.md LICENSE scripts/install_user_tools.sh scripts/uninstall_user_tools.sh resolve-aac-tools/
           cp -R native-aac resolve-aac-tools/
+          cp -R native-dialogs resolve-aac-tools/
           mkdir -p resolve-aac-tools/docs
           cp docs/third-party.md resolve-aac-tools/docs/
           cp scripts/resolve_aac_*.py resolve-aac-tools/

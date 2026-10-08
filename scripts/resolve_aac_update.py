@@ -14,12 +14,14 @@ import resolve_aac_native as native
 from resolve_aac_installer import prepare_installer
 
 
-def record(phase, message):
+def record(phase, message, summary_file=None):
     native.DATA_DIR.mkdir(parents=True, exist_ok=True)
     path = native.DATA_DIR / "update-state.json"
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps({"phase": phase, "message": message}) + "\n")
     temporary.replace(path)
+    if summary_file is not None:
+        summary_file.write_text(message + "\n")
     print(message, flush=True)
 
 
@@ -69,7 +71,7 @@ def wait_for_changes():
             raise KeyboardInterrupt()
 
 
-def run_update(installer, version, edition, skip_package_check=True, assume_yes=False):
+def run_update(installer, version, edition, skip_package_check=True, assume_yes=False, summary_file=None):
     native.require_closed()
     state = native.native_status()
     artifacts = patch_artifacts()
@@ -117,11 +119,13 @@ def run_update(installer, version, edition, skip_package_check=True, assume_yes=
                                "The installer may have been cancelled. Native AAC was not reapplied.")
 
         if not reapply:
-            record("complete", "Resolve update verified. Native AAC was left unchanged (not installed).")
+            record("complete", f"Resolve {installed_version} updated and verified. "
+                   "Native AAC: not installed (unchanged). You can start Resolve now.", summary_file)
             return 0
         if not native.supported(installed_version, installed_edition):
-            record("unsupported", "Resolve updated, but this version is not supported by Native AAC. "
-                   "The patch remains disabled. Open Settings to choose Legacy; no conversion workflow was enabled automatically.")
+            record("unsupported", f"Resolve {installed_version} updated and verified. "
+                   "Native AAC: disabled because this version is unsupported. "
+                   "Use Legacy in Settings if needed; it was not enabled automatically.", summary_file)
             return 0
         record("patching", "Step 3/3: Rebuilding and activating native AAC import + export for the updated Resolve...")
         with wait_for_changes():
@@ -129,7 +133,8 @@ def run_update(installer, version, edition, skip_package_check=True, assume_yes=
         final = checked_status()
         if not final["import_active"] or not final["export_installed"]:
             raise RuntimeError("Native AAC verification failed after the update.")
-        record("complete", "Resolve update and native AAC import + export verified. You can start Resolve now.")
+        record("complete", f"Resolve {installed_version} updated and verified. "
+               "Native AAC: import + export active and verified. You can start Resolve now.", summary_file)
         return 0
     except (Exception, KeyboardInterrupt) as exc:
         record("incomplete", "Update did not complete: " + (str(exc) or "interrupted") +
@@ -148,6 +153,7 @@ def main():
     parser.add_argument("--edition", required=True, choices=("studio", "free"))
     parser.add_argument("--strict-package-check", action="store_true")
     parser.add_argument("--yes", action="store_true")
+    parser.add_argument("--summary-file", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if os.geteuid() == 0:
         raise RuntimeError("Run the updater as your normal user, not with sudo. It requests privileges only when needed.")
@@ -164,7 +170,7 @@ def main():
         result = None
         try:
             result = run_update(installer, args.version, args.edition,
-                                not args.strict_package_check, args.yes)
+                                not args.strict_package_check, args.yes, summary_file=args.summary_file)
             return result
         finally:
             if prepared and result == 0:

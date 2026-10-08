@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+- Add build-guarded native KDE Relink Clips / Media in Bin dialogs without guessing
+  selected bins, and open Deliver's native picker before the old dialog is shown.
+  Verify the executable in the background at startup to avoid the first-click
+  delay. Unsupported builds retain their existing dialog path.
+- Ship dialog-extension source in both package formats, build it in the user's
+  cache, and honor the native-dialog toggle in the normal launchers.
+- Respect Mute notifications for render-location confirmations, including changes
+  made while the picker/watcher is running. Errors and log output remain visible.
+- Show the verified Resolve and Native AAC result directly in the ZIP updater's
+  closing message instead of referring back to earlier log output.
+- Adapt the pinned native AAC import patch to Studio 21.1.1's changed QuickTime
+  dispatch register, retaining instruction verification and the older layout.
+  Offline patch generation passes for 21.1.0 and 21.1.1; interactive 21.1.1
+  playback/export verification remains pending.
 - Open Toolkit settings at the standard 880 x 600 window size instead of restoring
   previously saved maximized dimensions.
 - Reuse already extracted Resolve installers after checking their SHA-256 against

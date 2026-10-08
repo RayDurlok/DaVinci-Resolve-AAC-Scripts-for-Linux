@@ -26,10 +26,13 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libopengl0
+          sudo apt-get install -y libegl1 libopengl0 qtbase5-dev g++ pkg-config
           python3 -m pip install PySide6 python-xlib
 
       - name: Test native AAC and watcher lifecycle
         env:
           QT_QPA_PLATFORM: offscreen
         run: python3 -m unittest discover -s tests -q
+
+      - name: Test native dialog handoff and unsupported-build fallback
+        run: bash tests/native-dialogs/run.sh

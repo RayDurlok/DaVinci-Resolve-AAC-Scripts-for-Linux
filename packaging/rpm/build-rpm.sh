@@ -25,6 +25,7 @@ mkdir -p "$DEST"
 # Docs
 cp "$REPO/README.md" "$REPO/LICENSE" "$DEST/"
 cp -R "$REPO/native-aac" "$DEST/"
+cp -R "$REPO/native-dialogs" "$DEST/"
 mkdir -p "$DEST/docs"
 cp "$REPO/docs/third-party.md" "$DEST/docs/"
 

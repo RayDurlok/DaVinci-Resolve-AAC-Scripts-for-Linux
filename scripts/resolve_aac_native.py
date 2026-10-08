@@ -19,6 +19,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+from resolve_aac_patch_compat import apply_compatibility
+
 PATCH_VERSION = "v0.1.1"
 PATCH_URL = ("https://github.com/josephg/resolve-aacfix/releases/download/"
              f"{PATCH_VERSION}/resolve-aacfix-{PATCH_VERSION}-linux-x86_64.tar.gz")
@@ -198,6 +200,7 @@ def prepare_package():
         for required in ("LICENSE", "THIRD-PARTY.md", "aac-patch-tree", "SHA256SUMS"):
             if not (source / required).is_file():
                 raise RuntimeError("Incomplete upstream release: " + required)
+        apply_compatibility(source)
         # Old privileged runs may have left root-owned Python caches. Moving the
         # old tree only needs access to its parent; never delete it in place.
         retired = None

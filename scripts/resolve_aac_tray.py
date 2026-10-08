@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -297,8 +298,8 @@ class ResolveAacTray(QObject):
         self.intercept_browse_action.setChecked(bool(self.config["intercept_deliver_browse"]))
         self.intercept_browse_action.setToolTip(
             "Off by default. On: installs the portal plugin so Resolve's dialogs (Export Still, "
-            "Import, ...) go native after a restart, and auto-replaces the Deliver 'Browse' browser "
-            "while Resolve runs. Off: removes the plugin again."
+            "Import, ...) go native after a restart. Verified builds also use native Relink and "
+            "Deliver dialogs without flashing the old window. Other builds keep the fallback."
         )
         self.intercept_browse_action.toggled.connect(self.set_intercept_deliver_browse)
         self.menu.addAction(self.intercept_browse_action)
@@ -408,6 +409,8 @@ class ResolveAacTray(QObject):
         # Portal-Fix installiert halten, solange der Toggle an ist (ueberlebt Neustart/fresh clone).
         if self.config["intercept_deliver_browse"]:
             self.ensure_native_dialog_plugin()
+        if self.resolve_font_fix_installed():
+            self.write_resolve_font_wrapper()
         # Intercept watcher is reconciled in tick() while Resolve is running.
 
         self.update_status()
@@ -775,61 +778,8 @@ class ResolveAacTray(QObject):
         self.notify("DaVinci Resolve Toolkit", "AAC export plugin uninstalled. Restart Resolve to finish unloading it.")
 
     def resolve_font_wrapper_content(self):
-        return """#!/usr/bin/env bash
-set -euo pipefail
-
-FONT_DIRS="/usr/share/fonts;/usr/local/share/fonts"
-
-if [[ -d /usr/local/share/fonts ]]; then
-  while IFS= read -r font_dir; do
-    FONT_DIRS+=";$font_dir"
-  done < <(find /usr/local/share/fonts -mindepth 1 -maxdepth 1 -type d | sort)
-fi
-
-if [[ -d "$HOME/.local/share/fonts" ]]; then
-  FONT_DIRS+=";$HOME/.local/share/fonts"
-fi
-
-if [[ -d "$HOME/.fonts" ]]; then
-  FONT_DIRS+=";$HOME/.fonts"
-fi
-
-export FUSION_FONTS="${FUSION_FONTS:+$FUSION_FONTS;}$FONT_DIRS"
-
-preload_system_glib_if_needed() {
-  local resolve_glib="/opt/resolve/libs/libglib-2.0.so.0"
-  local system_glib="/lib64/libglib-2.0.so.0"
-  local preload_libs=()
-
-  if [[ -r "$resolve_glib" && -r "$system_glib" ]] &&
-     ! readelf -Ws "$resolve_glib" 2>/dev/null | grep -q 'g_once_init_leave_pointer'; then
-    for lib in \
-      /lib64/libglib-2.0.so.0 \
-      /lib64/libgobject-2.0.so.0 \
-      /lib64/libgio-2.0.so.0 \
-      /lib64/libgmodule-2.0.so.0; do
-      [[ -r "$lib" ]] && preload_libs+=("$lib")
-    done
-  fi
-
-  if [[ "${#preload_libs[@]}" -gt 0 ]]; then
-    export LD_PRELOAD="${preload_libs[*]}${LD_PRELOAD:+ $LD_PRELOAD}"
-  fi
-}
-
-preload_system_glib_if_needed
-
-# Native KDE file dialogs (Export Still, Import, ...) when the "Native KDE file
-# dialogs" toggle installed the portal plugin symlink. Menu-launched Resolve uses
-# this wrapper, so the portal env has to be set here too.
-RESOLVE_QT_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/resolve-aac-tools/qt-plugins"
-if [[ -e "$RESOLVE_QT_PLUGINS/platformthemes/libqxdgdesktopportal.so" ]]; then
-  export QT_QPA_PLATFORMTHEME=xdgdesktopportal
-  export QT_PLUGIN_PATH="$RESOLVE_QT_PLUGINS${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
-fi
-
-exec /opt/resolve/bin/resolve "$@"
-"""
+        launcher = shlex.quote(str(SCRIPT_DIR / "resolve-with-fonts.sh"))
+        return f'#!/usr/bin/env bash\nset -euo pipefail\nexec bash {launcher} "$@"\n'
 
     def resolve_desktop_entry(self):
         return f"""[Desktop Entry]

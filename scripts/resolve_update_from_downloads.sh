@@ -208,7 +208,10 @@ fi
 
 edition=free
 if is_studio_zip "$ZIP_PATH"; then edition=studio; fi
-update_args=(--zip "$ZIP_PATH" --tmp-dir "$TMP_ROOT" --version "$VERSION" --edition "$edition")
+# A private, per-run result avoids displaying a previous update's AAC status.
+summary_file="$(mktemp)"
+trap 'rm -f -- "$summary_file"' EXIT
+update_args=(--zip "$ZIP_PATH" --tmp-dir "$TMP_ROOT" --version "$VERSION" --edition "$edition" --summary-file "$summary_file")
 if [[ "$ASSUME_YES" -eq 1 ]]; then update_args+=(--yes); fi
 if [[ "$SKIP_PACKAGE_CHECK" -eq 0 ]]; then update_args+=(--strict-package-check); fi
 if python3 "$(script_dir)/resolve_aac_update.py" "${update_args[@]}"; then
@@ -225,4 +228,5 @@ if [[ "$REFRESH_LAUNCHER" -eq 1 ]]; then
   echo
 fi
 
-echo "Updater finished. Review the Native AAC result above before starting Resolve."
+[[ -s "$summary_file" ]] || die "Update result is missing. Check Native AAC status before starting Resolve."
+cat -- "$summary_file"

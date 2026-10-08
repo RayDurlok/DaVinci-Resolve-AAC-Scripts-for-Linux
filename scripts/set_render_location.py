@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from resolve_aac_config import load_config
+
 RESOLVE_SCRIPT_MODULE = "/opt/resolve/Developer/Scripting/Modules/DaVinciResolveScript.py"
 STATE_FILE = Path.home() / ".cache" / "resolve-aac" / "last_render_location"
 
@@ -136,7 +138,7 @@ def apply_render_path(project, chosen: str) -> tuple[str, str]:
 
 
 def notify(message: str, critical: bool = False, title: str = "Render location"):
-    if shutil.which("notify-send"):
+    if (critical or not load_config().get("mute_notifications", False)) and shutil.which("notify-send"):
         args = ["notify-send", "-a", "DaVinci Resolve"]
         if critical:
             args += ["-u", "critical"]
@@ -169,8 +171,9 @@ def save_start_dir(path: str):
             pass
 
 
-def main() -> int:
-    start = load_start_dir(sys.argv[1] if len(sys.argv) > 1 else None)
+def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    start = load_start_dir(argv[0] if argv else None)
     chosen = pick_save_path(start)
     if not chosen:
         return 0  # Nutzer hat abgebrochen

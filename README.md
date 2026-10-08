@@ -250,10 +250,13 @@ The extras are optional:
 
 - **Native KDE file dialogs** (off by default): routes Resolve's file dialogs
   (Export Still, Import and Deliver destination) through the native KDE/portal
-  picker. Media relinking stays in Resolve because its scripting API cannot
-  reliably distinguish one selected bin from multiple selected bins. Needs
-  `python3-gobject`, `kdialog`, `xprop` and Python Xlib (installer adds them);
-  restart Resolve after toggling.
+  picker. On the verified Studio 21.1.1 Native AAC build, **Relink Clips / Media
+  in Bin** also use KDE while Resolve retains its own selection; Deliver Browse
+  opens directly without flashing the old dialog. Other builds retain the
+  original Relink dialog and Deliver watcher. Start Resolve through the toolkit
+  or its font-fix launcher and restart after toggling. The installer offers the
+  C++ compiler and Qt5 headers needed to build this small extension locally;
+  the RPM includes these dependencies. See [compatibility details](native-dialogs/README.md).
 - **Resolve font fix**: one-time install so Resolve/Fusion see fonts from
   `/usr/local/share/fonts`, `~/.local/share/fonts`, and `~/.fonts`.
 - **DaVinci Resolve Updater** (`resolve-update-from-downloads`): installs the
