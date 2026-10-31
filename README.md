@@ -117,7 +117,8 @@ to restore Resolve; uninstalling the toolkit alone does not undo it.
 Direct AAC import and AAC-LC export, without remux copies or conversion watchers.
 This is an **experimental patch for Resolve Studio 21 on Linux x86-64**.
 
-1. Close Resolve. In **Settings -> Native AAC**, select **Native AAC**.
+1. Close Resolve. Open **Settings -> Native AAC**. Fresh installations preselect
+   **Native AAC**; click **Enable native AAC**. Existing workflow choices are kept.
 2. Confirm installation and approve administrator access when asked. Missing
    build tools are offered for installation. The progress view shows each stage;
    **Details and credits** opens the diagnostic output.
@@ -132,6 +133,7 @@ patches Resolve.
 Both native components are removed/restored together, with administrator approval.
 Cancellation or failure keeps Native selected. Legacy options return with their
 saved settings after successful removal.
+If no native components are installed, selecting Legacy needs no rollback.
 
 While Native is selected, Legacy controls are hidden, their watchers stop and
 their menu scripts refuse remux/restore actions. An in-flight conversion may

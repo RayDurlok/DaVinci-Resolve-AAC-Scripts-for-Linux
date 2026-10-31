@@ -22,7 +22,7 @@ class NativePageTests(unittest.TestCase):
 
     def setUp(self):
         for target, kwargs in (
-            ("load_config", {"return_value": dict(DEFAULT_CONFIG)}),
+            ("load_config", {"return_value": dict(DEFAULT_CONFIG, aac_mode="legacy")}),
             ("save_config", {"side_effect": lambda cfg: cfg}),
             ("SetupWindow._refresh_resolve_info", {}),
             ("SetupWindow.native_operation", {}),
@@ -44,6 +44,46 @@ class NativePageTests(unittest.TestCase):
                                         export_installed=exported)
         self.window.update_native_status()
         self.app.processEvents()
+
+    def test_fresh_native_setup_offers_activation_without_auto_install(self):
+        with patch.object(setup, "load_config", return_value=dict(DEFAULT_CONFIG)):
+            window = setup.SetupWindow(first_run=True)
+        try:
+            window.native_state = dict(supported=True, import_active=False, export_installed=False)
+            window.update_native_status()
+            window.open_page(1)
+            window.show()
+            self.app.processEvents()
+            self.assertEqual(window.cfg["aac_mode"], "native")
+            self.assertEqual(window.aac_mode_group.checkedId(), 0)
+            self.assertTrue(window.native_install_btn.isVisible())
+            self.assertEqual(window.native_install_btn.text(), "Enable native AAC")
+            self.assertFalse(window.legacy_links.isVisible())
+            self.assertNotIn(3, window.visible_pages())
+            self.assertNotIn(4, window.visible_pages())
+            self.assertFalse(any(call.args and call.args[0] == "install"
+                                 for call in window.native_operation.call_args_list))
+            window.native_install_btn.click()
+            window.native_operation.assert_called_with("install")
+        finally:
+            window.close()
+
+    def test_unpatched_native_selection_can_choose_legacy_without_uninstall(self):
+        self.window.cfg["aac_mode"] = "native"
+        self.state()
+        self.window.native_operation.reset_mock()
+        self.window.select_aac_mode(1)
+        self.window.native_operation.assert_not_called()
+        self.assertEqual(self.window.cfg["aac_mode"], "legacy")
+        self.assertEqual(self.window.aac_mode_group.checkedId(), 1)
+        self.assertIn(3, self.window.visible_pages())
+
+    def test_unknown_native_status_still_requires_checked_removal(self):
+        self.window.cfg["aac_mode"] = "native"
+        self.window.native_state = {}
+        self.window.select_aac_mode(1)
+        self.window.native_operation.assert_called_with("uninstall")
+        self.assertEqual(self.window.cfg["aac_mode"], "native")
 
     def test_new_window_ignores_saved_fullscreen_dimensions(self):
         config = dict(DEFAULT_CONFIG, window_width=3840, window_height=2160)

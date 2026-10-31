@@ -1007,7 +1007,9 @@ class SetupWindow(QWidget):
 
     def select_aac_mode(self, index):
         mode = "native" if index == 0 else "legacy"
-        if mode == "legacy" and (self.cfg.get("aac_mode") == "native" or
+        unpatched = (self.native_state.get("import_active") is False and
+                     self.native_state.get("export_installed") is False)
+        if mode == "legacy" and ((self.cfg.get("aac_mode") == "native" and not unpatched) or
                                  self.native_state.get("import_active") or self.native_state.get("export_installed")):
             # The selection stays Native until the privileged rollback succeeds.
             self.aac_mode_group.button(0 if self.cfg.get("aac_mode") == "native" else 1).setChecked(True)

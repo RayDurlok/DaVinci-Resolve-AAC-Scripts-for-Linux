@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-31
+
+- Default fresh installations to Native AAC and show its activation action in
+  setup. Keep existing Legacy choices and pre-native configurations unchanged.
+  Choosing Legacy before any patch is installed no longer requests a rollback.
+
 ## [0.3.3] - 2026-10-09
 
 - Add build-guarded native KDE Relink Clips / Media in Bin dialogs without guessing

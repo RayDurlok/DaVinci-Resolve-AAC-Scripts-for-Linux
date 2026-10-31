@@ -89,6 +89,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.4" date="2026-10-31">
+      <description>
+        <p>Start fresh installations with Native AAC selected.</p>
+        <ul>
+          <li>Offer native AAC activation during setup; installation still requires confirmation</li>
+          <li>Preserve existing Legacy choices and older configurations</li>
+          <li>Skip unnecessary rollback prompts when no native components are installed</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.3" date="2026-10-09">
       <description>
         <p>Improves native dialogs and manual Resolve ZIP updates.</p>

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 # Keep in sync with the RPM spec Version (packaging/rpm/resolve-aac-tools.spec).
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.3.4"
 NATIVE_AAC_NOTICE_VERSION = 1
 
 CONFIG_DIR = Path.home() / ".config" / "resolve-aac-tools"
@@ -18,7 +18,7 @@ LEGACY_STOP_PATHS = tuple(Path("/tmp") / name for name in (
 ))
 
 DEFAULT_CONFIG = {
-    "aac_mode": "legacy",
+    "aac_mode": "native",
     "use_cache": False,
     "cache_dir": str(DEFAULT_CACHE_DIR),
     "watch_manual_resolve": True,
@@ -37,9 +37,19 @@ def load_config():
     config = dict(DEFAULT_CONFIG)
     try:
         data = json.loads(CONFIG_PATH.read_text())
+    except FileNotFoundError:
+        return config
     except Exception:
+        config["aac_mode"] = "legacy"
         return config
 
+    if not isinstance(data, dict):
+        config["aac_mode"] = "legacy"
+        return config
+    # Pre-native installations did not store a workflow. Keep their behaviour
+    # on upgrade; only a missing/empty configuration uses the new default.
+    if data and "aac_mode" not in data:
+        config["aac_mode"] = "legacy"
     config.update({key: data[key] for key in config if key in data})
     if config["aac_mode"] not in ("native", "legacy"):
         config["aac_mode"] = "legacy"

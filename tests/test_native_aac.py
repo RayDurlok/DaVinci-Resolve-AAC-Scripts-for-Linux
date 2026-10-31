@@ -19,6 +19,39 @@ import resolve_aac_tray as tray
 
 
 class ConfigTests(unittest.TestCase):
+    def test_fresh_install_defaults_to_native_without_legacy_watchers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            with patch.object(config, "CONFIG_PATH", path):
+                for contents in (None, "{}"):
+                    if contents is not None:
+                        path.write_text(contents)
+                    loaded = config.load_config()
+                    self.assertEqual(loaded["aac_mode"], "native")
+                    self.assertFalse(config.legacy_enabled(loaded))
+                    self.assertTrue(config.should_show_setup(loaded))
+
+    def test_existing_workflows_and_pre_native_configs_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            with patch.object(config, "CONFIG_PATH", path):
+                for data, mode in (({"aac_mode": "legacy"}, "legacy"),
+                                   ({"aac_mode": "native"}, "native"),
+                                   ({"setup_completed": True, "web_export_watch": True}, "legacy")):
+                    path.write_text(json.dumps(data))
+                    loaded = config.load_config()
+                    self.assertEqual(loaded["aac_mode"], mode)
+                    if "web_export_watch" in data:
+                        self.assertTrue(loaded["remux_exports"])
+
+    def test_invalid_existing_config_does_not_switch_workflow(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            with patch.object(config, "CONFIG_PATH", path):
+                for contents in ("{broken", "null", "[]"):
+                    path.write_text(contents)
+                    self.assertEqual(config.load_config()["aac_mode"], "legacy")
+
     def test_architecture_notice_is_once_per_migration_not_every_launch(self):
         self.assertFalse(config.should_show_native_update(dict(config.DEFAULT_CONFIG)))
         old = dict(config.DEFAULT_CONFIG, setup_completed=True)
