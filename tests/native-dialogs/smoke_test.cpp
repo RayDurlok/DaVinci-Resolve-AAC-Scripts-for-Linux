@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QDialog>
+#include <QProcess>
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QTreeView>
@@ -8,6 +9,12 @@
 
 int main(int argc, char **argv)
 {
+    if (qEnvironmentVariable("LD_PRELOAD").contains(QStringLiteral("dialogs.so")))
+        return 10;
+    QProcess child;
+    child.start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), QStringLiteral("exit 0")});
+    if (!child.waitForFinished() || child.exitStatus() != QProcess::NormalExit || child.exitCode())
+        return 11;
     QApplication app(argc, argv);
     QDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Select Source Folder"));

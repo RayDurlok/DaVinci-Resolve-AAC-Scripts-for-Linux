@@ -29,6 +29,12 @@ compiled library is cached under `$XDG_CACHE_HOME/resolve-aac-tools/native-dialo
 build failure leave the existing dialog route available. Resolve installation
 files are not modified. No test logs, media paths or compiled libraries are shipped.
 
+The loaded bridge removes only its own entry from `LD_PRELOAD` before Resolve
+starts helper programs. Downloads and other external commands must not inherit
+the bridge or its Resolve-specific Qt dependencies; other preload entries remain.
+If Resolve's update **Download** button did nothing with an older toolkit, update
+to 0.3.5 or later and restart Resolve. No AAC repatch is needed for this fix.
+
 The bridge uses unsupported private Qt layouts only on the verified build.
 This is independent of the AAC import/export patch and can be disabled with the
 native-dialog toggle. External scripting set to **Local** is still needed for

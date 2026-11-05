@@ -5,6 +5,13 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-05
+
+- Keep the native dialog bridge out of child processes, fixing Resolve's update
+  Download action and other external commands failing to load Resolve libraries.
+- Preserve other preload entries and test both child-process startup and native
+  dialog behavior. Restart Resolve after updating; no AAC repatch is required.
+
 ## [0.3.4] - 2026-10-31
 
 - Default fresh installations to Native AAC and show its activation action in

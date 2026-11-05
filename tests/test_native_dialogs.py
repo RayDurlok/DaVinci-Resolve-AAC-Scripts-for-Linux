@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -116,6 +117,39 @@ class PickerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(dialogs, "cache_dir", return_value=Path(directory)), patch.object(render, "main", side_effect=RuntimeError("failed")), patch.object(render, "notify") as notify:
             self.assertEqual(dialogs.deliver_picker(), 1)
             notify.assert_called_once_with("Could not set the render destination: failed", critical=True)
+
+
+@unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("c++"),
+                     "Linux and a C++ compiler are required")
+class PreloadScopeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        cls.library = Path(cls.tmp.name) / "preload-scope.so"
+        source = Path(__file__).resolve().parents[1] / "native-dialogs/preload_scope.cpp"
+        subprocess.run(["c++", "-std=c++17", "-shared", "-fPIC", str(source),
+                        "-ldl", "-o", str(cls.library)], check=True, capture_output=True)
+
+    def inherited_preload(self, value):
+        environment = dialogs.clean_helper_env(os.environ)
+        environment["LD_PRELOAD"] = value
+        result = subprocess.run(["/usr/bin/env"], env=environment, text=True,
+                                capture_output=True, check=True, timeout=10)
+        return next((line.partition("=")[2] for line in result.stdout.splitlines()
+                     if line.startswith("LD_PRELOAD=")), None)
+
+    def test_only_bridge_is_unset_before_main(self):
+        self.assertIsNone(self.inherited_preload(str(self.library)))
+
+    def test_other_preloads_survive_space_and_colon_separators(self):
+        for separator in (" ", ":"):
+            with self.subTest(separator=separator):
+                value = separator.join(("libm.so.6", str(self.library), "libc.so.6"))
+                self.assertEqual(self.inherited_preload(value), "libm.so.6 libc.so.6")
+
+    def test_duplicate_bridge_entries_are_removed(self):
+        self.assertIsNone(self.inherited_preload(f"{self.library}:{self.library}"))
 
 
 if __name__ == "__main__":

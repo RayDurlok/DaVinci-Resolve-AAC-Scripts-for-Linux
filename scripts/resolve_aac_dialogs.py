@@ -16,7 +16,7 @@ from resolve_aac_config import load_config
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SOURCES = ("dialog_hook.cpp", "relink_bridge.cpp", "relink_bridge.h",
-           "deliver_bridge.cpp", "deliver_bridge.h")
+           "deliver_bridge.cpp", "deliver_bridge.h", "preload_scope.cpp")
 LIBRARIES = ("libQt5Widgets.so.5", "libQt5Gui.so.5", "libQt5Core.so.5")
 
 

@@ -80,6 +80,8 @@ Confirm the update in the terminal that opens;
 Fedora/Copr uses DNF (administrator password), archive installs use the latest
 verified GitHub release. The toolkit restarts afterwards. Settings, cache and
 autostart are preserved; Resolve and its native AAC patch are not changed.
+Restart Resolve after updating to load native dialog fixes, including the
+unresponsive update **Download** button fixed in 0.3.5.
 
 Archive updates keep their application files under
 `~/.local/share/resolve-aac-tools/releases` (or `$XDG_DATA_HOME`). Do not delete the

@@ -89,6 +89,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.5" date="2026-11-05">
+      <description>
+        <p>Fix Resolve update downloads when native KDE dialogs are enabled.</p>
+        <ul>
+          <li>Keep the native dialog bridge out of external helper programs</li>
+          <li>Preserve other preload entries and existing native dialog behavior</li>
+          <li>Restart Resolve after updating; no AAC repatch is required</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.4" date="2026-10-31">
       <description>
         <p>Start fresh installations with Native AAC selected.</p>

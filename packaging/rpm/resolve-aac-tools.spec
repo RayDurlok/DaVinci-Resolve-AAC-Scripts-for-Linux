@@ -3,7 +3,7 @@
 %global sharedir %{_datadir}/%{srcname}
 
 Name:           davinci-resolve-toolkit
-Version:        0.3.4
+Version:        0.3.5
 Release:        1%{?dist}
 Summary:        Fix AAC audio and streamline DaVinci Resolve on Linux from the system tray
 
@@ -209,6 +209,10 @@ gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 %{_datadir}/icons/hicolor/512x512/apps/%{appid}.png
 
 %changelog
+* Thu Nov 05 2026 RayDurlok <noreply@example.com> - 0.3.5-1
+- Prevent the native dialog bridge from leaking into Resolve child processes
+- Fix update downloads and external commands; restart Resolve after updating
+
 * Sat Oct 31 2026 RayDurlok <noreply@example.com> - 0.3.4-1
 - Preselect Native AAC for fresh installs without changing existing workflows
 - Allow an unpatched installation to select Legacy without a rollback prompt
